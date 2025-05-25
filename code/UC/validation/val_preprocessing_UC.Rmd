@@ -1,0 +1,222 @@
+---
+title: "val_preprocessing_UC"
+output: html_document
+date: "2025-05-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+#install.packages("WGCNA")
+#install.packages("gage")
+#BiocManager::install("impute")
+library(matrixStats)
+library(WGCNA)
+library(magrittr)
+library(tibble)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(affy)
+library(GEOquery)
+library(limma)
+library(umap)
+library(affy)
+library(vegan)
+library(pheatmap)
+library(openxlsx)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+#library(gage)
+library(AnnotationDbi)
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path) 
+setwd(main_dir)
+```
+
+## **Информация о датасете:**
+
+Patients with moderate-to-severe, active UC were treated with infliximab or placebo at weeks 0, 2, 6 and every 8 weeks thereafter. Biopsy samples (n=113) were collected from 48 patients at baseline, weeks 8 and 30 for RNA extraction and microarray analysis.
+
+## Загрузка метаданных для датасета
+
+```{r message=FALSE, warning=FALSE}
+gse97 <- getGEO(GEO = 'GSE23597', GSEMatrix = TRUE)
+metadata97 <- pData(phenoData(gse97[[1]]))
+```
+
+### Отбор полезных колонок
+
+```{r}
+# colnames(metadata97)
+metadata_edited <- metadata97 %>%
+  dplyr::select('title', 'geo_accession', 'source_name_ch1', 'characteristics_ch1.1',   'characteristics_ch1.2', 'characteristics_ch1.3', 'characteristics_ch1.4', 'characteristics_ch1.5') %>%
+  dplyr::rename(tissue = 'source_name_ch1') %>%
+  dplyr::rename(dose = 'characteristics_ch1.1') %>%
+  mutate(dose = gsub("dose: ", "", dose)) %>%
+  dplyr::rename(time_point = 'characteristics_ch1.2') %>%
+  mutate(time_point = gsub("time: ", "", time_point)) %>%
+  dplyr::rename(subject = 'characteristics_ch1.3') %>%
+  mutate(subject = gsub("subject: ", "", subject)) %>%
+  dplyr::rename(response_wk8 = 'characteristics_ch1.4') %>%
+  mutate(response_wk8 = gsub("wk8 response: ", "", response_wk8)) %>%
+  dplyr::rename(response_wk30 = 'characteristics_ch1.5') %>%
+  mutate(response_wk30 = gsub("wk30 response: ", "", response_wk30)) %>%
+  rownames_to_column(var = 'sample') %>%
+  dplyr::rename(Geo_accession = 'geo_accession')
+
+```
+
+
+
+### Определение выборок -- групп для сравнения
+
+В эксперименте участвовали пациенты, получавшие плацебо вместо инфликсимаба. Отбираем только тех пациентов, которые получали инфликсимаб.
+
+```{r}
+
+# 1. ВСЕ до лечения (Нулевая неделя)
+all_beforeT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W0")
+
+# 2. ВСЕ после 8 недель лечения
+all_after_8W <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W8")
+  
+# 3. ВСЕ после 30 недель лечения
+all_after_30W <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W30")
+
+# 4. Респондеры после 8 недели до лечения
+all_R8_beforeT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W0" & response_wk8 == "Yes")
+  
+# 5. Респондеры после 30 недели до лечения
+all_R30_beforeT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W0" & response_wk30 == "Yes")
+
+# 6. Респондеры после 8 недели после лечения
+all_R8_afterT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W8" & response_wk8 == "Yes")
+  
+# 7. Респондеры после 30 недели после лечения
+all_R30_afterT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W30" & response_wk30 == "Yes")
+  
+# 8. Все респондеры вообще
+all_afterT <- metadata_edited %>%
+  filter(dose != "placebo" & (time_point == "W8" | time_point == "W30") & (response_wk30 == "Yes" | response_wk30 == "Yes"))
+
+# 9. НЕреспондеры ДО лечения
+all_NR_beforeT <- metadata_edited %>%
+  filter(dose != "placebo" & time_point == "W0" & response_wk30 == "No")
+
+# 10. НЕреспондеры ПОСЛЕ лечения
+all_NR_afterT <- metadata_edited %>%
+  filter(dose != "placebo" & (time_point == "W8" | time_point == "W30") & response_wk30 == "No")
+```
+
+## Загрузка сырых данных
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+
+# get supplementary files
+getGEOSuppFiles("GSE23597", baseDir = '../../../data/UC/validation')
+
+# untar files
+untar("../../../data/UC/validation/GSE23597/GSE23597_RAW.tar", exdir = '../../../data/UC/validation/GSE23597/GSE23597_data')
+
+raw.data <- ReadAffy(celfile.path = "../../../data/UC/validation/GSE23597/GSE23597_data")
+```
+
+### RMA - Нормализация
+
+```{r message=FALSE, warning=FALSE}
+normalized.data <- rma(raw.data)
+normalized.expr <- as.data.frame(exprs(normalized.data))
+```
+
+### Добавление колонки Gene.Symbol
+
+И удаление строк без аннотации
+
+```{r message=FALSE, warning=FALSE}
+gse_gs <- getGEO("GSE23597", GSEMatrix = TRUE)
+feature.data <- gse_gs$GSE23597_series_matrix.txt.gz@featureData@data
+feature.data <- feature.data[, c(1,11)]
+feature.data <- feature.data %>%
+  dplyr::rename(Gene.Symbol = "Gene Symbol")
+
+normalized.expr <- normalized.expr %>%
+  rownames_to_column(var = "ID")
+
+gene_normalized.expr <- inner_join(normalized.expr, feature.data, by = "ID")
+
+
+filtered_gene_normalized.expr <- gene_normalized.expr %>%
+  filter(Gene.Symbol != "" & !is.na(Gene.Symbol))
+```
+
+### Группировка по Gene.Symbol и подсчет среднего значения экспрессии
+
+```{r message=FALSE, warning=FALSE}
+mean_norm.expr <- filtered_gene_normalized.expr %>%
+  group_by(`Gene.Symbol`) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+```
+
+```{r}
+# отформатируем таблицу с экспрессией
+mean_norm.expr <- as.data.frame(mean_norm.expr)
+rownames(mean_norm.expr) <- mean_norm.expr$Gene.Symbol
+colnames(mean_norm.expr) <- gsub(".CEL.gz", "", colnames(mean_norm.expr))
+
+mean_norm.expr <- subset(mean_norm.expr, select = -Gene.Symbol)
+```
+
+```{r}
+# сохраним пациентов до лечения 
+W0_ids <- all_beforeT$Geo_accession
+
+W0_ids <- W0_ids[W0_ids %in% colnames(mean_norm.expr)]
+
+W0_expr_data <- mean_norm.expr[ , W0_ids]
+```
+
+
+```{r}
+# Убедимся, что порядок пациентов в экспрессии и метадате совпадает
+W0_ids <- colnames(W0_expr_data)
+all_beforeT_matched <- all_beforeT[match(W0_ids, all_beforeT$Geo_accession), ]
+
+# Проверим соответствие:
+stopifnot(all(W0_ids == all_beforeT_matched$Geo_accession))
+
+# Создаём вектор: 1 = респондер, 0 = нереспондер
+response_vector <- ifelse(all_beforeT_matched$response_wk8 == "Yes", 1, 0)
+
+```
+
+```{r}
+hub_genes <- c("IL6", "TLR4", "TLR8", "IL1B", "CXCL8",
+               "TLR2", "ITGAM", "PTGS2", "S100A12", "FCGR3B")
+
+ref_gene <- "ACTB"
+
+```
+
+```{r}
+genes_all <- c(hub_genes, ref_gene)
+expr_subset <- W0_expr_data[rownames(W0_expr_data) %in% genes_all, ]
+
+```
+
+
+```{r}
+response_vector_val <- response_vector
+expr_hub_genes_val <- expr_subset
+write.csv(expr_hub_genes_val, file = "../../../tables/UC/validation/expr_hub_genes_val.csv", row.names = TRUE)
+
+write.csv(data.frame(response = response_vector_val), file = "../../../tables/UC/validation/response_vector_val.csv", row.names = FALSE)
+```
