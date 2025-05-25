@@ -1,3 +1,4 @@
 *.RData
 *.log
 *.CEL.gz
+*.tar
