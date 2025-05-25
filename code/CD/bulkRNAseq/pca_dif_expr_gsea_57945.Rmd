@@ -1,0 +1,512 @@
+---
+title: "DifExpression(GSE57945)"
+author: "Aleksei Osipov"
+output: html_document
+date: "2025-01-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+
+#BiocManager::install("clusterProfiler")
+
+
+#if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+
+#BiocManager::install("AnnotationDbi")
+```
+
+
+#RNAseq GSE57945
+Number of samples: 359
+Age under 17
+Number of CD patients:
+- ileal-involved CD (iCD):
+- non-invloved ileal CD (cCD):
+
+
+     sex      age_at_diagnosis   paris_age   diagnosis  
+ Female:135   Length:322         A1a: 90   CD     :218  
+ Male  :187   Class :character   A1b:232   Not IBD: 42  
+              Mode  :character             UC     : 62  
+                                                        
+                                                        
+    i2_type                     histopathology deep_ulcer
+ cCD    : 55   Macroscopic inflammation:162   NA:104   
+ iCD    :163   Microscopic inflammation: 29    No :142   
+ Not IBD: 42   NA                      :104    Yes: 76   
+ UC     : 62   Normal                  : 24              
+               Undetermined            :  3              
+
+RNA was isolated using the Qiagen AllPrep RNA/DNA Mini Kit, RNA quality and concentration were measured by Agilent Bioanalyzer 2100 using the RNA 6000 Nano Assay.
+
+RNA sequencing (RNA-seq) libraries were prepared using the Illumina TruSeq RNA preparation kit and sequenced on the Illumina HiSeq 2000 with single-end 50-bp reads (Illumina, San Diego, CA).
+
+We report the global pattern of ileal gene expression in a cohort of 359 treatment-naïve pediatric Crohn Disease, Ulcerative Colitis patients and controls. We focus on genes with consistent altered expression in inflamed and unaffected ileum of CD [ileal-involved CD (iCD) and non-invloved ileal CD (cCD)], but not in the ileum of ulcerative colitis or control.
+
+Ileal biopsies were obtained during diagnostic colonoscopies of children and adolescents aged less than 17 years, who presented with IBD-like symptoms. All patients underwent baseline colonoscopy and histological characterization; non-IBD controls were those with suspected IBD, but with no microscopic or macroscopic inflammation and normal radiographic, endoscopic, and histologic findings. Biopsies were stored at -80 degrees.
+
+This dataset was taken in consideration on order to characterise the differences in expression profiles among patients with Crohn Disease and healthy patients with suspeted IBD.
+
+
+```{r, warning=FALSE, message=FALSE}
+#if (!requireNamespace("BiocManager", quietly = TRUE)) #install.packages("BiocManager")
+#BiocManager::install(c("GEOquery", "DESeq2", "org.Hs.eg.db", #"clusterProfiler", "ggplot2", "PCAtools"))
+library(R.utils)
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(writexl)
+library(GEOquery)
+library(DESeq2)
+library(ggplot2)
+library(PCAtools)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+
+
+```
+Obtain dataset
+```{r}
+
+gse_57945 <- getGEO(GEO = 'GSE57945', GSEMatrix = TRUE)
+```
+Tip
+```{r}
+#Error: The size of the connection buffer (131072) was not large enough                                          0s
+#to fit a complete line:
+#   * Increase it by setting `Sys.setenv("VROOM_CONNECTION_SIZE")`
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 1000)
+```
+
+# 1 Metadata extraction
+```{r}
+metadata_57945 <- pData(phenoData(gse_57945[[1]]))
+head(metadata_57945)
+```
+
+Select columns we need
+```{r}
+metadata_57945_selected <- metadata_57945 %>% dplyr::select(title, geo_accession, source_name_ch1,characteristics_ch1, characteristics_ch1.1, `age at diagnosis:ch1`, characteristics_ch1.3, characteristics_ch1.4, characteristics_ch1.5, characteristics_ch1.6, characteristics_ch1.7, library_source)
+```
+
+```{r}
+metadata_57945_selected <- metadata_57945_selected %>%
+  dplyr::select(-source_name_ch1)
+```
+
+```{r}
+metadata_57945_selected$response <- 'no_therapy'  
+```
+
+Rename to readable format
+```{r}
+metadata_57945_selected <- metadata_57945_selected %>% 
+  rename(sex = characteristics_ch1.1) %>%
+  rename(sourse_name = characteristics_ch1) %>%
+  rename(age_at_diagnosis = `age at diagnosis:ch1`) %>%
+  rename(paris_age = characteristics_ch1.3) %>%
+  rename(diagnosis = characteristics_ch1.4) %>%
+  rename(i2_type = characteristics_ch1.5) %>%
+  rename(histopathology = characteristics_ch1.6) %>%
+  rename(deep_ulcer = characteristics_ch1.7) %>%
+  mutate(sex = gsub('Sex: ', '', sex)) %>%
+  mutate(sourse_name = gsub('tissue: ', '', sourse_name)) %>%
+  mutate(paris_age = gsub('paris age: ', '', paris_age)) %>%
+  mutate(diagnosis = gsub('diagnosis: ', '', diagnosis)) %>%
+  mutate(i2_type = gsub('l2 type: ', '', i2_type)) %>%
+  mutate(histopathology = gsub('histopathology: ', '', histopathology)) %>%
+  mutate(deep_ulcer = gsub('deep ulcer:', '', deep_ulcer))
+```
+
+```{r}
+metadata_57945_selected <- metadata_57945_selected %>%
+  mutate(across(c(i2_type, diagnosis), ~ case_when(
+    . %in% c("not IBD", "Not IBD") ~ "Not IBD",
+    TRUE ~ .))) %>%
+  mutate(deep_ulcer = case_when(
+    deep_ulcer %in% c(" no", " No") ~ "No",
+    deep_ulcer %in% c(" Yes") ~ "Yes",
+    deep_ulcer %in% c(" NA") ~ "NA",
+    TRUE ~ deep_ulcer
+  ))
+```
+
+```{r}
+metadata_57945_selected <- metadata_57945_selected %>%
+  mutate(across(c(sex, sourse_name, paris_age, diagnosis, i2_type, histopathology, deep_ulcer), as.factor))
+```
+
+```{r cars}
+summary(metadata_57945_selected)
+```
+
+Select useful columns for PCA and differential expression
+```{r}
+info_57945 <- metadata_57945_selected %>%
+  dplyr::select(diagnosis, i2_type, histopathology)
+```
+
+# 2 Obtain gene expression data
+```{r}
+supplementary_files <- getGEOSuppFiles("GSE57945")
+list.files("GSE57945")
+```
+```{r}
+#Dearchivation
+#getGEOSuppFiles("GSE57945")
+
+untar("GSE57945/GSE57945_RAW.tar", exdir = "GSE57945_RAW")
+```
+
+
+
+```{r}
+files <- list.files("C:/Users/LEXUS/Documents/GSE57945_RAW", pattern = "*.gz", full.names = TRUE)
+lapply(files, gunzip)
+
+```
+Посмотрим как выглядит дата
+```{r}
+sample_data <- read.table("C:/Users/LEXUS/Documents/GSE57945_RAW/GSM1598408_CCFA_Risk_001.txt", 
+                          header = TRUE,
+                          sep = "\t",          
+                          stringsAsFactors = FALSE)
+
+head(sample_data)
+```
+```{r}
+counts_file <- download.file("https://www.ncbi.nlm.nih.gov/geo/download/?type=rnaseq_counts&acc=GSE57945&format=file&file=GSE57945_raw_counts_GRCh38.p13_NCBI.tsv.gz", 
+              destfile = "GSE57945_raw_counts_GRCh38.p13_NCBI.tsv.gz")
+
+# Скачивание аннотационного файла
+annotation_file <- download.file("https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts&file=Human.GRCh38.p13.annot.tsv.gz", 
+              destfile = "Human.GRCh38.p13.annot.tsv.gz")
+```
+
+```{r}
+GSE57945_raw_counts <- read.table(gzfile("F:/Загрузки/GSE57945_raw_counts_GRCh38.p13_NCBI.tsv.gz"), 
+                     header = TRUE, 
+                     sep = "\t")
+```
+
+```{r}
+annotation <- read.table(gzfile("F:/Загрузки/Human.GRCh38.p13.annot.tsv.gz"), 
+                         header = TRUE, 
+                         sep = "\t", 
+                         stringsAsFactors = FALSE,
+                         fill = TRUE)
+```
+
+```{r}
+library(dplyr)
+```
+
+
+```{r}
+annotation_genes <- annotation %>% dplyr::select(GeneID, Symbol)
+```
+
+
+```{r}
+colnames(GSE57945_raw_counts)[1] <- "GeneID"  # Переименование, если нужно
+
+# Объединение по GeneID
+counts_with_symbols1 <- merge(annotation_genes, GSE57945_raw_counts, by = "GeneID")
+
+# Удаление столбца GeneID (оставляем только GeneSymbol)
+counts_with_symbols <- counts_with_symbols1[, -1]
+
+# Установка GeneSymbol как rownames
+#rownames(counts_with_symbols) <- counts_with_symbols$Symbol
+#counts_with_symbols <- counts_with_symbols[, -1]
+```
+
+```{r}
+#counts_with_symbols <- aggregate(. ~ Symbol, data = #counts_with_symbols, FUN = mean)
+```
+
+
+```{r}
+rownames(counts_with_symbols) <- counts_with_symbols$Symbol
+counts_with_symbols <- counts_with_symbols[, -1]
+```
+
+```{r}
+any(duplicated(counts_with_symbols$Symbol))
+```
+
+```{r}
+all(colnames(counts_with_symbols) %in% rownames(info_57945))
+```
+
+```{r}
+all(colnames(counts_with_symbols) == rownames(info_57945))
+```
+
+# 3 construct a DESeqDataSet object
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = counts_with_symbols,
+                       colData = info_57945,
+                       design = ~ diagnosis)
+dds
+```
+
+# pre-filtering: removing rows with low gene counts
+# keeping rows that have at least 10 reads total
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+# set the factor level
+
+```{r}
+dds$diagnosis <- relevel(dds$diagnosis, ref = "Not IBD")
+```
+
+NOTE: collapse technical replicates
+
+# 4 Run DESeq
+
+```{r, warning=FALSE, message=FALSE}
+dds <- DESeq(dds)
+res <- results(dds)
+
+res
+```
+
+```{r}
+deg <- res[which(res$padj < 0.05 & abs(res$log2FoldChange) > 1), ]
+head(deg)
+```
+
+
+```{r}
+view(deg)
+```
+
+
+# Explore Results ----------------
+
+```{r}
+#summary(res)
+
+res0_05_UC_Cont <- results(dds, contrast = c("diagnosis", "UC", "Not IBD"), alpha = 0.05)
+summary(res0_05_UC_Cont)
+```
+
+```{r}
+deg_UC <- res0_05_UC_Cont[which(res0_05_UC_Cont$padj < 0.05 & abs(res0_05_UC_Cont$log2FoldChange) > 1), ]
+view(deg_UC)
+```
+
+```{r}
+resultsNames(dds)
+```
+
+# MA Plot
+
+```{r}
+#results(dds, contrast = c("diagnosis", "UC", "Not IBD"))
+
+# MA plot
+plotMA(res0_05_UC_Cont)
+```
+
+#Volcano plot
+
+```{r}
+#  p-value 0.05
+res0_05_UC_Cont$significance <- "NS"
+res0_05_UC_Cont$significance[which(res0_05_UC_Cont$pvalue < 0.05 & abs(res0_05_UC_Cont$log2FoldChange) > 1)] <- "Significant"
+
+# Построим график
+ggplot(res0_05_UC_Cont, aes(x = log2FoldChange, y = -log10(pvalue), color = significance)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_color_manual(values = c("gray", "red")) +
+  theme_minimal() +
+  labs(title = "Volcano Plot Not IBD vs UC", x = "Log2 Fold Change", y = "-Log10 P-value") +
+  theme(legend.position = "top") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +  # Добавляем линию для порога p-value
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed")
+
+annotate("text", x = 3, y = 20, label = "Not IBD vs UC", size = 6, angle = 0, hjust = 0.5, color = "black")
+```
+
+```{r}
+# p-value 0.01
+res0_05_UC_Cont$significance <- "NS"
+res0_05_UC_Cont$significance[which(res0_05_UC_Cont$pvalue < 0.01 & abs(res0_05_UC_Cont$log2FoldChange) > 1)] <- "Significant"
+
+# Построим график
+ggplot(res0_05_UC_Cont, aes(x = log2FoldChange, y = -log10(pvalue), color = significance)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_color_manual(values = c("gray", "red")) +
+  theme_minimal() +
+  labs(title = "Volcano Plot Not IBD vs UC", x = "Log2 Fold Change", y = "-Log10 P-value") +
+  theme(legend.position = "top") +
+  geom_hline(yintercept = -log10(0.01), linetype = "dashed") +  # Добавляем линию для порога p-value
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed")
+```
+
+```{r}
+res0_05_CD_Cont <- results(dds, contrast = c("diagnosis", "CD", "Not IBD"), alpha = 0.05)
+
+summary(res0_05_CD_Cont)
+```
+
+```{r}
+deg_CD <- res0_05_CD_Cont[which(res0_05_CD_Cont$padj < 0.05 & abs(res0_05_CD_Cont$log2FoldChange) > 1), ]
+view(deg_CD)
+```
+
+```{r}
+deg_CD_table <- as.data.frame(deg_CD)
+write_csv(deg_CD_table, "C:/Users/LEXUS/Documents/Учёба в ИБ/deg_CD_table_57945.csv")
+```
+
+```{r}
+#deg_CD_table <- as.data.frame(deg_CD)
+#write_csv(deg_CD_table, "/deg_CD_table_57945.csv")
+```
+
+```{r}
+
+
+# MA plot
+plotMA(res0_05_CD_Cont)
+```
+
+
+
+```{r}
+#  p-value 0.05
+
+
+res0_05_CD_Cont$significance <- "NS"
+res0_05_CD_Cont$significance[which(res0_05_CD_Cont$pvalue < 0.05 & abs(res0_05_CD_Cont$log2FoldChange) > 1)] <- "Significant"
+
+# Построим график
+p = ggplot(res0_05_CD_Cont, aes(x = log2FoldChange, y = -log10(pvalue), color = significance)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_color_manual(values = c("gray", "red")) +
+  theme_minimal() +
+  labs(title = "Volcano Plot Not IBD vs CD", x = "Log2 Fold Change", y = "-Log10 P-value") +
+  theme(legend.position = "top") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +  # Добавляем линию для порога p-value
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed")
+pp
+```
+
+```{r}
+ggsave("../../../images/CD/bulkRNAseq/DEG_plot_CD.png", plot = pp, width = 8, height = 6, dpi = 300)
+```
+
+
+# PCA
+Нормализация
+```{r}
+vsd <- vst(dds, blind = FALSE)
+```
+
+Построение
+```{r}
+p = plotPCA(
+  vsd,
+  intgroup = "diagnosis",  # Столбец с диагнозом (несколько категорий)
+  ntop = 1000,
+  returnData = FALSE,
+  pcsToUse = 1:2
+) +
+scale_color_manual(values = c("CD" = "red", "Not IBD" = "blue", "UC" = "green"))
+p
+```
+
+```{r}
+ggsave("../../../images/CD/bulkRNAseq/pca_plot_CD.png", plot = p, width = 8, height = 6, dpi = 300)
+```
+
+
+```{r}
+ordered_genes <- res0_05_CD_Cont[order(-res0_05_CD_Cont$log2FoldChange),]
+head(ordered_genes)
+```
+
+```{r}
+sig_genes <- ordered_genes$log2FoldChange
+names(sig_genes) <- rownames(ordered_genes)
+head(sig_genes)
+```
+
+```{r}
+sig_genes
+```
+
+
+```{r}
+gse <- gseGO(sig_genes,
+             ont = "BP",
+             keyType = "SYMBOL",
+             OrgDb = "org.Hs.eg.db",
+             eps = 1e-300)
+```
+
+```{r}
+gse_frame <- as.data.frame(gse)
+view(gse_frame)
+```
+
+```{r}
+#write_xlsx(gse@result, '../../../tables/CD/bulkRNAseq/GSEA.xlsx')
+```
+
+```{r}
+pl = ridgeplot(gse, label_format = 50) + 
+  theme(axis.text.y = element_text(size = 8))
+pl
+```
+
+```{r}
+ggsave("../../../images/CD/bulkRNAseq/ridgeplot_CD.png", plot = pl, width = 8, height = 6, dpi = 300)
+```
+
+
+```{r}
+dotplot(gse, showCategory = 20)
+```
+```{r}
+
+```
+
+
+```{r}
+plo <- dotplot(gse, showCategory = 10)  
+plo
+```
+
+```{r}
+ggsave("../../../images/CD/bulkRNAseq/dotplot_CD.png", plot = plo, width = 8, height = 6, dpi = 300)
+```
+
+
+```{r}
+gp = gseaplot(gse, geneSetID = 1)
+gp
+```
+
+```{r}
+ggsave("../../../images/CD/bulkRNAseq/gseaplot_CD.png", plot = gp, width = 8, height = 6, dpi = 300)
+```
+
