@@ -474,3 +474,52 @@ kWithin <- intramodularConnectivity(adj_module, colors = rep(module_number, leng
 top_hubs <- kWithin[order(-kWithin$kWithin), ]
 head(top_hubs, 10)
 ```
+
+
+Saving response vector and expression data:
+```{r}
+W0_ids <- metadata$geo_accession
+
+W0_ids <- W0_ids[W0_ids %in% colnames(mean_norm.expr)]
+
+W0_expr_data <- mean_norm.expr[ , W0_ids]
+```
+
+```{r}
+
+W0_ids <- colnames(W0_expr_data)
+train_matched <- metadata_edited[match(W0_ids, metadata_edited$geo_accession), ]
+
+
+stopifnot(all(W0_ids == train_matched$geo_accession))
+
+
+response_vector_train <- ifelse(train_matched$response == "Yes", 1, 0)
+
+```
+
+```{r}
+
+hub_genes <- c("IL6", "TLR4", "TLR8", "IL1B", "CXCL8",
+               "TLR2", "ITGAM", "PTGS2", "S100A12", "FCGR3B")
+
+ref_gene <- "ACTB"
+```
+
+```{r}
+genes_all <- c(hub_genes, ref_gene)
+
+
+expr_subset_train <- W0_expr_data[rownames(W0_expr_data) %in% genes_all, ]
+
+expr_hub_genes_train <- expr_subset_train
+
+```
+
+```{r}
+write.csv(expr_hub_genes_train, file = "../../../tables/UC/train/expr_hub_genes_train.csv", row.names = TRUE) # genes train
+
+write.csv(data.frame(response = response_vector_train), file = "../../../tables/UC/train/response_vector_train.csv", row.names = FALSE) # vector train
+```
+
+
