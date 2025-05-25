@@ -54,9 +54,14 @@ Reseacrh workflow is comprised of the following steps
 
 # Results
 
-During the work the results were identified.
+## Crohn disease
 
 
+![DEGS_CD](images/UC/train/plot_deg_uc_train.png)
+   
+
+
+For crohn
 |![hub_genes](images/hub_genes.png)|
 |:-----------------------------------:|
 | *Hub genes identified during the study*          |
