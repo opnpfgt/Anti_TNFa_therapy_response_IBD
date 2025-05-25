@@ -1,0 +1,318 @@
+---
+title: "ROC-AUC validation"
+author: "Reshetnikova"
+output: html_document
+date: '2025-03-24'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+f rf
+```{r message=FALSE, warning=FALSE}
+#install.packages("WGCNA")
+#install.packages("gage")
+#BiocManager::install("impute")
+library(matrixStats)
+library(WGCNA)
+library(magrittr)
+library(tibble)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(affy)
+library(GEOquery)
+library(limma)
+library(umap)
+library(affy)
+library(vegan)
+library(pheatmap)
+library(openxlsx)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+#library(gage)
+library(AnnotationDbi)
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path) 
+setwd(main_dir)
+```
+
+
+```{r}
+# train data
+expr_hub_genes_train <- read.csv("../../../tables/UC/train/expr_hub_genes_train.csv", row.names = 1)
+response_vector_train <- read.csv("../../../tables/UC/train/response_vector_train.csv")$response
+```
+
+
+```{r}
+# validation data
+expr_hub_genes_val <- read.csv("../../../tables/UC/validation/expr_hub_genes_val.csv", row.names = 1)
+response_vector_val <- read.csv("../../../tables/UC/validation/response_vector_val.csv")$response
+```
+
+```{r}
+library(pROC)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(caret)
+```
+
+```{r}
+genes_all <- c("ACTB", "CXCL8", "FCGR3B", "IL1B", "IL6", "ITGAM", 
+               "PTGS2", "S100A12", "TLR2", "TLR4", "TLR8") # with refgene ACTB
+
+genes_subset <- c("CXCL8", "FCGR3B", "IL1B", "IL6", "ITGAM", 
+                  "PTGS2", "S100A12", "TLR2", "TLR4", "TLR8")
+
+```
+
+1. ROC AUC for each gene in validation cohort.
+```{r}
+roc_list <- list()
+
+for (gene in genes_all) {
+  if (!(gene %in% rownames(expr_hub_genes_val))) {
+    cat("Gene", gene, "is not found in rownames expr_hub_genes_val\n")
+    next
+  }
+  
+
+  roc_obj <- roc(response_vector_val, 
+                 as.numeric(expr_hub_genes_val[gene, ]),
+                 plot = FALSE)
+  
+  roc_list[[gene]] <- roc_obj
+}
+
+if (length(roc_list) > 0) {
+  
+
+  png("../../../images/UC/validation/roc_auc_each_gene.png", width = 2000, height = 2000, res = 300)
+
+  plot(NULL, xlim = c(0, 1), ylim = c(0, 1),
+       xlab = "1 - Specificity", ylab = "Sensitivity", 
+       main = "ROC Curves for Individual Genes")
+
+  colors_vec <- rainbow(length(roc_list))
+
+  i <- 1
+  for (gene in names(roc_list)) {
+    lines(roc_list[[gene]], col = colors_vec[i], lwd = 2)
+    i <- i + 1
+  }
+
+  legend("bottomright", 
+         legend = paste(names(roc_list), "AUC =", 
+                        round(sapply(roc_list, function(x) x$auc), 3)),
+         col = colors_vec, lwd = 2, cex = 0.8)
+  
+  dev.off()
+  
+  message("ROC-curves are saved roc_curves.png")
+  
+} else {
+  message("No genes...:(")
+}
+
+```
+
+
+2. Let's check how the expression changes in different cohorts:
+```{r}
+plot_data <- data.frame(
+  IL1B = as.numeric(expr_hub_genes_val["IL1B", ]),
+  IL6 = as.numeric(expr_hub_genes_val["IL6", ]),
+  CXCL8 = as.numeric(expr_hub_genes_val["CXCL8", ]),
+  Response = as.factor(response_vector_val)
+)
+levels(plot_data$Response) <- c("Non-Responder", "Responder")
+
+plot_data_long <- plot_data %>%
+  pivot_longer(cols = c(IL1B, IL6, CXCL8), names_to = "Gene", values_to = "Expression")
+
+pvals <- plot_data_long %>%
+  group_by(Gene) %>%
+  summarise(
+    p_value = wilcox.test(Expression ~ Response)$p.value
+  ) %>%
+  mutate(
+    FDR = p.adjust(p_value, method = "BH"),
+    signif = case_when(
+      FDR < 0.001 ~ "***",
+      FDR < 0.01 ~ "**",
+      FDR < 0.05 ~ "*",
+      TRUE ~ "ns"
+    ),
+    label = paste0('p.adj-value = ', signif(FDR, 2), 
+                   "\n", signif)
+  )
+
+annotation_df <- pvals %>%
+  mutate(x = 1.5, y = Inf)
+
+gene_labels <- c(
+  IL1B = expression(italic("IL1B")),
+  IL6 = expression(italic("IL6")),
+  CXCL8 = expression(italic("CXCL8"))
+)
+
+ggplot(plot_data_long, aes(x = Response, y = Expression, fill = Response)) +
+  geom_boxplot() +
+  geom_text(data = annotation_df,
+            aes(x = x, y = y, label = label),
+            inherit.aes = FALSE, vjust = 1, size = 3.5) +
+  facet_wrap(~ Gene, scales = "free_y", nrow = 1,
+             labeller = labeller(Gene = gene_labels)) +
+  theme_minimal() +
+  labs(
+    title = expression("Expression of" ~ italic("IL1B") ~ "," ~ italic("IL6") ~ ", and" ~ italic("CXCL8") ~ " by Response Status in UC val. cohort"),
+    x = "Response", y = "Expression"
+  ) +
+  scale_x_discrete(labels = c("Non-Responder" = "NR", "Responder" = "R")) +
+  scale_fill_manual(
+    name = "Response Status",
+    values = c("Non-Responder" = "lightblue", "Responder" = "salmon"),
+    labels = c("Non-Responder", "Responder")
+  ) +
+  theme(strip.text = element_text(face = "italic"))
+
+ggsave("../../../images/UC/validation/boxplot.jpg")
+```
+
+- Logistical Regression
+```{r}
+library(pROC)
+
+genes_combined <- c("IL1B", "IL6", "CXCL8", "TLR2", "TLR4")
+X <- t(expr_hub_genes_val[genes_combined, ])
+X <- as.data.frame(X)
+y <- response_vector_val
+
+logit_model <- glm(y ~ ., data = X, family = binomial)
+probs <- predict(logit_model, type = "response")
+roc_obj <- roc(y, probs, quiet = TRUE)
+
+png("../../../images/UC/validation/roc_logistic_model.png", width = 2000, height = 2000, res = 300)
+
+plot(roc_obj, col = "darkblue", lwd = 2,
+     main = "ROC Curve for Logistic Regression Model for common hub genes",
+     legacy.axes = TRUE)
+
+ci <- ci.auc(roc_obj)
+std_val <- (ci[3] - ci[1]) / (2 * 1.96)
+auc_val <- auc(roc_obj)
+z <- (auc_val - 0.5) / std_val
+p_val <- 1 - pnorm(z)
+
+p_star <- if (p_val < 0.001) {
+  "***"
+} else if (p_val < 0.01) {
+  "**"
+} else if (p_val < 0.05) {
+  "*"
+} else {
+  "ns"
+}
+
+legend("bottomright",
+       legend = c(
+         paste("AUC =", round(auc_val, 3)),
+         paste("Std =", round(std_val, 3)),
+         paste("p-value =", signif(p_val, 3), p_star)
+       ),
+       cex = 1.3,
+       text.font = 2,
+       bty = "o")
+
+dev.off()
+
+```
+
+
+
+- Subplots with 5 AUCs for 5 genes and 1 AUC for Logistical Regression.
+
+```{r}
+library(pROC)
+
+genes_to_plot <- c("IL1B", "IL6", "CXCL8", "TLR2", "TLR4")
+X <- t(expr_hub_genes_val[genes_to_plot, ])
+X <- as.data.frame(X)
+y <- response_vector_val
+logit_model <- glm(y ~ ., data = X, family = binomial)
+probs <- predict(logit_model, type = "response")
+roc_obj_logit <- roc(y, probs, quiet = TRUE)
+
+png("../../../images/UC/validation/roc_subplots_6.png", width = 3000, height = 2000, res = 300)
+par(mfrow = c(2, 3), mar = c(5, 5, 4, 2))
+
+for (gene in genes_to_plot) {
+  expr_vals <- as.numeric(expr_hub_genes_val[gene, ])
+  roc_obj <- roc(y, expr_vals, quiet = TRUE)
+
+  auc_val <- auc(roc_obj)
+  ci <- ci.auc(roc_obj)
+  std_val <- (ci[3] - ci[1]) / (2 * 1.96)
+  z <- (auc_val - 0.5) / std_val
+  p_val <- 1 - pnorm(z)
+
+  p_star <- if (p_val < 0.001) {
+    "***"
+  } else if (p_val < 0.01) {
+    "**"
+  } else if (p_val < 0.05) {
+    "*"
+  } else {
+    "ns"
+  }
+
+  plot(roc_obj, col = "purple", lwd = 2,
+       main = paste("ROC Curve for", gene),
+       legacy.axes = TRUE)
+
+  legend("bottomright",
+         legend = c(
+           paste("AUC =", round(auc_val, 3)),
+           paste("Std =", round(std_val, 3)),
+           paste("p =", signif(p_val, 3), p_star)
+         ),
+         cex = 1.3,
+         text.font = 2,
+         bty = "o")
+}
+
+auc_val <- auc(roc_obj_logit)
+ci <- ci.auc(roc_obj_logit)
+std_val <- (ci[3] - ci[1]) / (2 * 1.96)
+z <- (auc_val - 0.5) / std_val
+p_val <- 1 - pnorm(z)
+
+p_star <- if (p_val < 0.001) {
+  "***"
+} else if (p_val < 0.01) {
+  "**"
+  } else if (p_val < 0.05) {
+    "*"
+  } else {
+    "ns"
+  }
+
+plot(roc_obj_logit, col = "darkblue", lwd = 2,
+     main = "Logistic Regression (all genes)",
+     legacy.axes = TRUE)
+
+legend("bottomright",
+       legend = c(
+         paste("AUC =", round(auc_val, 3)),
+         paste("Std =", round(std_val, 3)),
+         paste("p =", signif(p_val, 3), p_star)
+       ),
+       cex = 1.3,
+       text.font = 2,
+       bty = "o")
+
+dev.off()
+
+```
+
