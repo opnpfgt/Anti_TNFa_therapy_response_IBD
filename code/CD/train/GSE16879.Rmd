@@ -1539,25 +1539,25 @@ print(plot_CD_DEG_results_5)
 #### Сохранение Volcano plots
 
 ```{r}
+# Создаём папку, если не существует
 dir.create("../../../images/CD/train/DEGs/DEGs_CD_Results", recursive = TRUE, showWarnings = FALSE)
 
 # Список графиков DEG
 deg_list <- list(plot_CD_DEG_results_1, plot_CD_DEG_results_2, plot_CD_DEG_results_3, plot_CD_DEG_results_4, plot_CD_DEG_results_5)
 
-# Названия файлов с префиксами
+# Названия PNG-файлов
 file_names <- c(
-  "1_CD_Volcano_All_Before_vs_After.png",  # Все ДО и ПОСЛЕ
-  "2_CD_Volcano_R_Before_vs_After.png",    # Респондеры ДО и ПОСЛЕ
-  "3_CD_Volcano_NR_Before_vs_After.png",   # Нереспондеры ДО и ПОСЛЕ
-  "4_CD_Volcano_NR_vs_R_Before.png",       # Респондеры и Нереспондеры ДО
-  "5_CD_Volcano_NR_vs_R_After.png"         # Респондеры и Нереспондеры ПОСЛЕ
+  "1_CD_Volcano_All_Before_vs_After.png",
+  "2_CD_Volcano_R_Before_vs_After.png",
+  "3_CD_Volcano_NR_Before_vs_After.png",
+  "4_CD_Volcano_NR_vs_R_Before.png",
+  "5_CD_Volcano_NR_vs_R_After.png"
 )
-# Сохранение графиков в формате SVG с указанными размерами 18x12
+
+# Сохраняем графики в PNG
 for (i in seq_along(deg_list)) {
   file_path <- paste0("../../../images/CD/train/DEGs/DEGs_CD_Results/", file_names[i])
-  svg(file_path, width = 16, height = 10)
-  print(deg_list[[i]])
-  dev.off()
+  ggsave(filename = file_path, plot = deg_list[[i]], device = "png", width = 9, height = 6, dpi = 300)
 }
 ```
 
