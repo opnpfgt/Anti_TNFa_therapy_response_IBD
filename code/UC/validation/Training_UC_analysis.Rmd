@@ -1,0 +1,476 @@
+---
+title: "Training_UC_analysis"
+author: "Arthur Lee"
+output: html_document
+date: '2025-03-24'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Required Libraries:
+```{r message=FALSE, warning=FALSE}
+library(matrixStats)
+library(WGCNA)
+library(magrittr)
+library(tibble)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(affy)
+library(GEOquery)
+library(limma)
+library(umap)
+library(affy)
+library(vegan)
+library(pheatmap)
+library(openxlsx)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(gage)
+library(AnnotationDbi)
+library(ggrepel)
+library(VennDiagram)
+library(RCy3)
+library(readxl)
+
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path)
+setwd(main_dir)
+
+mean_norm.expr <- read_excel("mean_norm.expr.xlsx")
+metadata <- read_excel("metadata.xlsx")
+```
+## Overall design:
+
+Twenty-two patients underwent colonoscopy with biopsy before infliximab treatment. Response to infliximab was defined as endoscopic and histologic healing at week 8 (P2, 5, 9, 10, 14, 15, 16, 17, 24, 27, 36, and 45 as responders; P3, 12, 13, 19, 28, 29, 32, 33, 34, and 47 as non-responders). Messenger RNA was isolated from pre-infliximab biopsies, labeled and hybridized to Affymetrix HGU133Plus_2.0 Array. The predictive response signature was verified by an independent data set.
+
+## PCA
+
+The analysis is carried out using the vegan library. We are building a Scree graph for a visual assessment of the PC impact.
+
+```{r}
+# we leave only numerical values
+pca_matrix <- mean_norm.expr %>%
+  dplyr::select(-Gene.Symbol) %>%
+  as.matrix()
+
+gene_symbols <- mean_norm.expr$Gene.Symbol
+
+pca_matrix <- t(pca_matrix)
+
+pca_matrix_scaled <- decostand(pca_matrix, method = "standardize")
+
+pca_vegan <- rda(pca_matrix_scaled, scale = TRUE)
+
+screeplot(pca_vegan, main = "Scree Plot: PCA on Gene Expression")
+```
+
+```{r}
+pca_scores <- scores(pca_vegan, display = "sites", choices = 1:2)
+pca_scores_df <- as.data.frame(pca_scores)
+
+pca_scores_df <- pca_scores_df %>%
+  rownames_to_column(var = "ID")
+
+pca_scores_df <- pca_scores_df %>%
+  mutate(ID = gsub(".CEL.gz", "", ID)) 
+
+pca_df <- left_join(pca_scores_df, metadata, by = c("ID" = "geo_accession"))
+```
+
+```{r}
+ggplot(pca_df, aes(x = PC1, y = PC2, color = response)) +
+  geom_point(size = 4, alpha = 0.8) +
+  labs(title = "PCA validation UC", x = "PC1", y = "PC2") +
+  theme_minimal()
+```
+
+## DEG -- Differential gene expression
+
+```{r}
+expr_matrix <- as.matrix(mean_norm.expr[, -1])
+rownames(expr_matrix) <- mean_norm.expr$Gene.Symbol
+colnames(expr_matrix) <- gsub(".CEL.gz", "", colnames(expr_matrix))
+```
+
+```{r}
+condition <- metadata_edited$response[match(colnames(expr_matrix), metadata_edited$geo_accession)]
+condition <- ifelse(condition == "Yes", "Responder",
+             ifelse(condition == "No",  "Non_responder", NA))
+design <- model.matrix(~0 + condition)
+colnames(design) <- levels(factor(condition))
+fit <- lmFit(expr_matrix, design)
+contrast.matrix <- makeContrasts(Non_responder - Responder, levels = design)
+fit2 <- contrasts.fit(fit, contrast.matrix)
+fit2 <- eBayes(fit2)
+results <- topTable(fit2, coef = 1, number = Inf, adjust.method = "BH")
+
+sig_genes <- subset(results, adj.P.Val < 0.05 & abs(logFC) > 1)
+volcanoplot(fit2, coef = 1, highlight = 10, names = rownames(fit2), cex = 0.002)
+pheatmap(expr_matrix[rownames(sig_genes), ], scale = "row", show_rownames = FALSE)
+
+write.xlsx(sig_genes, file = "DEG_validation_UC.xlsx", rowNames = TRUE)
+
+sig_genes <-  rownames_to_column(results, "Gene")
+gene_list <- sig_genes$logFC
+names(gene_list) <- sig_genes$Gene
+gene_list <- sort(gene_list, decreasing = TRUE)
+```
+
+### Visualization
+
+```{r}
+sig_genes_filt <- sig_genes %>% filter(adj.P.Val < 0.05)
+```
+
+```{r}
+data_plot_deg <- results
+data_plot_deg$gene <- row.names(data_plot_deg)
+
+# Define differentially expressed genes
+data_plot_deg$diffexpressed <- "Not significant"
+data_plot_deg$diffexpressed[data_plot_deg$logFC > 1 & data_plot_deg$adj.P.Val < 0.05] <- "Upregulated"
+data_plot_deg$diffexpressed[data_plot_deg$logFC < -1 & data_plot_deg$adj.P.Val < 0.05] <- "Downregulated"
+
+# Safely select top genes (handle cases with <10 significant genes)
+top_up <- data_plot_deg[data_plot_deg$diffexpressed == "Upregulated", ]
+top_up <- top_up[order(-top_up$logFC), ]
+top_up_genes <- if(nrow(top_up) > 0) top_up[1:min(10, nrow(top_up)), "gene"] else character(0)
+
+top_down <- data_plot_deg[data_plot_deg$diffexpressed == "Downregulated", ]
+top_down <- top_down[order(top_down$logFC), ]
+top_down_genes <- if(nrow(top_down) > 0) top_down[1:min(10, nrow(top_down)), "gene"] else character(0)
+
+# Label only these genes
+data_plot_deg$delabel <- ifelse(data_plot_deg$gene %in% c(top_up_genes, top_down_genes), 
+                              data_plot_deg$gene, NA)
+
+# Create Volcano Plot
+plot_deg <- ggplot(data = data_plot_deg, 
+                  aes(x = logFC, 
+                      y = -log10(adj.P.Val), 
+                      col = diffexpressed, 
+                      label = delabel)) +
+  geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +
+  geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("#00AFBB", "grey", "#bb0c00"),
+                     labels = c("Downregulated", "Not significant", "Upregulated"),
+                     name = "Expression") +
+  coord_cartesian(ylim = c(0, max(-log10(data_plot_deg$adj.P.Val), na.rm = TRUE)), 
+                  xlim = c(-max(abs(data_plot_deg$logFC), na.rm = TRUE), 
+                           max(abs(data_plot_deg$logFC), na.rm = TRUE))) +
+  labs(x = expression("log"[2]*"FC"), 
+       y = expression("-log"[10]*"adj.p-value"),
+       title = 'Volcano Plot: Differentially Expressed Genes Before Treatment (Responders vs. Non-Responders)') +
+  geom_text_repel(size = 4, max.overlaps = Inf, na.rm = TRUE) +
+  theme_minimal()
+
+# Save and plot
+ggsave(filename = "plot_deg.svg", plot = plot_deg, width = 16, height = 10, dpi = 300)
+print(plot_deg)
+```
+
+logFC \> 1 → Выше экспрессия у нереспондентов
+
+## GSEA
+
+```{r message=FALSE, warning=FALSE}
+gse <- gseGO(gene_list,
+             ont = "BP",
+             keyType = "SYMBOL",
+             OrgDb = org.Hs.eg.db,
+             eps = 1e-300)
+as.data.frame(gse)
+gseaplot(gse, geneSetID = 1)
+
+write.xlsx(gse@result, file = "GSEA_training_UC.xlsx", quote = FALSE, rowNames = TRUE)
+```
+
+```{r}
+dotplot(gse, showCategory = 15, title = "Enriched Pathways in GSEA (Training UC)")
+
+gsea_plot <- dotplot(gse, 
+                    showCategory = 15, 
+                    title = "Enriched Pathways in GSEA (Training UC)")
+
+ggsave(filename = "GSEA_dotplot.png", 
+       plot = gsea_plot,
+       width = 10, 
+       height = 8,
+       dpi = 300)
+```
+
+## WGCNA
+
+```{r message=FALSE, warning=FALSE}
+input_mat = t(mean_norm.expr)
+colnames(input_mat) <- input_mat[1, ]
+input_mat <- input_mat[-1, ]
+rownames(input_mat) <- gsub(".CEL.gz", "", rownames(input_mat))
+
+gene_variances <- apply(input_mat, 2, var, na.rm = TRUE)
+top7500_genes <- names(sort(gene_variances, decreasing = TRUE)[1:7500])
+input_mat_top7500 <- input_mat[, top7500_genes, drop = FALSE]
+dim(input_mat_top7500) 
+```
+
+```{r}
+allowWGCNAThreads(3)
+powers = c(c(1:10), seq(from = 12, to = 30, by = 2))
+sft = pickSoftThreshold(
+  input_mat_top7500,
+  powerVector = powers,
+  verbose = 5
+  )
+par(mfrow = c(1,2));
+cex1 = 0.9;
+
+plot(sft$fitIndices[, 1],
+     -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
+     xlab = "Soft Threshold (power)",
+     ylab = "Scale Free Topology Model Fit, signed R^2",
+     main = paste("Scale independence")
+)
+text(sft$fitIndices[, 1],
+     -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
+     labels = powers, cex = cex1, col = "red"
+)
+abline(h = 0.90, col = "red")
+plot(sft$fitIndices[, 1],
+     sft$fitIndices[, 5],
+     xlab = "Soft Threshold (power)",
+     ylab = "Mean Connectivity",
+     type = "n",
+     main = paste("Mean connectivity")
+)
+text(sft$fitIndices[, 1],
+     sft$fitIndices[, 5],
+     labels = powers,
+     cex = cex1, col = "red")
+```
+
+
+```{r}
+input_mat_top7500 <- as.matrix(input_mat_top7500)
+storage.mode(input_mat_top7500) <- "numeric"
+picked_power = 10
+temp_cor <- cor       
+cor <- WGCNA::cor         # Force it to use WGCNA cor function (fix a namespace conflict issue)
+netwk <- blockwiseModules(input_mat_top7500,                # <= input here
+
+                          # == Adjacency Function ==
+                          power = picked_power,                # <= power here
+                          networkType = "signed",
+
+                          # == Tree and Block Options ==
+                          deepSplit = 2,
+                          pamRespectsDendro = F,
+                          # detectCutHeight = 0.75,
+                          minModuleSize = 30,
+                          maxBlockSize = 4000,
+
+                          # == Module Adjustments ==
+                          reassignThreshold = 0,
+                          mergeCutHeight = 0.25,
+
+                          # == TOM == Archive the run results in TOM file (saves time)
+                          saveTOMs = T,
+                          saveTOMFileBase = "ER",
+
+                          # == Output Options
+                          numericLabels = T,
+                          verbose = 3)
+cor <- temp_cor
+```
+
+```{r}
+# Convert labels to colors for plotting
+mergedColors = labels2colors(netwk$colors)
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(
+  netwk$dendrograms[[1]],
+  mergedColors[netwk$blockGenes[[1]]],
+  "Module colors",
+  dendroLabels = FALSE,
+  hang = 0.03,
+  addGuide = TRUE,
+  guideHang = 0.05 )
+```
+
+```{r}
+module_df <- data.frame(
+  gene_id = names(netwk$colors),
+  colors = labels2colors(netwk$colors)
+)
+
+module_df[1:5,]
+```
+
+```{r}
+batch <- metadata_edited$response
+
+batch <- as.data.frame(batch)
+
+# One-Hot Encoding
+batch_numeric <- model.matrix(~ . - 1, data = batch)
+
+# Convert it to data.frame (otherwise it is a matrix)
+batch_numeric <- as.data.frame(batch_numeric)
+
+
+module.trait.corr <- cor(netwk$MEs, batch_numeric, use = 'p')
+module.trait.corr.pvals <- corPvalueStudent(module.trait.corr, nrow(input_mat))
+
+rownames(batch_numeric) <- rownames(metadata_edited)
+```
+
+```{r}
+library(CorLevelPlot)
+heatmap.data <- merge(netwk$MEs, batch_numeric, by = 'row.names')
+
+head(heatmap.data)
+
+heatmap.data <- heatmap.data %>% 
+  column_to_rownames(var = 'Row.names')
+
+heatmap.data$Response_No <- heatmap.data$batchNo
+heatmap.data$Response_Yes <- heatmap.data$batchYes
+
+
+CorLevelPlot(heatmap.data,
+             x = names(heatmap.data)[24:25],
+             y = names(heatmap.data)[1:21],
+             col = c("blue1", "skyblue", "white", "pink", "red"))
+
+cor_plot <- CorLevelPlot(heatmap.data,
+                        x = names(heatmap.data)[24:25],
+                        y = names(heatmap.data)[1:21],
+                        col = c("blue1", "skyblue", "white", "pink", "red"))
+
+png("CorLevelPlot_heatmap.png", width = 10, height = 8, units = "in", res = 300)
+print(cor_plot)
+dev.off()
+```
+
+```{r}
+sig_genes_filt_up <- sig_genes_filt %>% filter(abs(logFC) > 1)
+intersected <- intersect(sig_genes_filt_up$Gene, module_df$gene_id)
+```
+
+```{r}
+module_to_MEs <- data.frame(
+  MEs_Name = colnames(netwk$MEs),  # ME0, ME1, ...
+  ModuleColor = unique(mergedColors)  # Соответствующие цвета модулей
+)
+
+print(module_to_MEs)
+```
+
+```{r}
+ME19_df <- subset(module_df, colors == "turquoise")
+ME19_genes <- ME19_df$gene_id
+
+me19 <- as.data.frame(ME19_genes)
+write_delim(me19, 'training_ME19_genes.txt', delim = '\t')
+```
+
+```{r}
+ME1_df <- subset(module_df, colors == "pink")
+ME1_genes <- ME1_df$gene_id
+
+me1 <- as.data.frame(ME3_genes)
+write_delim(me1, 'training_ME1_genes.txt', delim = '\t')
+```
+
+```{r}
+gene_lists <- list(
+  DEGs = sig_genes_filt_up$Gene,
+  ME1_genes = ME1_genes,
+  ME19_genes = ME19_genes
+)
+
+# Constructing a Venn diagram
+venn.plot <- venn.diagram(
+  x = gene_lists,
+  filename = NULL, 
+  fill = c("red", "blue", "green"),
+  alpha = 0.5,
+  cat.col = c("red", "blue", "green"),
+  cat.cex = 1.2,
+  margin = 0.1
+)
+
+grid.newpage()
+grid.draw(venn.plot)
+
+
+png("venn_plot.png", width = 10, height = 8, units = "in", res = 300)
+grid.newpage()
+grid.draw(venn.plot)
+dev.off()
+```
+
+## GO
+
+```{r}
+universe <- mean_norm.expr$Gene.Symbol
+
+ora_ME19_df <- enrichGO(
+  gene          = ME19_genes,
+  universe = universe,
+  OrgDb         = org.Hs.eg.db,
+  keyType       = "SYMBOL",
+  ont           = "ALL",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05
+)
+
+write_delim(ora_ME19_df[, c("ID", "Description")], "training_pathways_ME19.txt", delim = "\t")
+```
+
+```{r}
+labels <- ora_ME19_df@result$Description
+
+dot_plot <- dotplot(ora_ME3_df, showCategory = 9) +
+  scale_y_discrete(labels = labels) +
+  theme(
+    axis.text = element_text(size = 16),
+    axis.title = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14),
+    axis.text.y = element_text(size = 16),
+    axis.title.x = element_blank(),
+    plot.title = element_text(size = 18, hjust = 0.5, margin = margin(b = 20))
+  ) +
+  ggtitle("UC. Before: Non-Responders vs. Responders")
+
+dot_plot
+```
+
+### Looking for common genes
+
+```{r}
+genes1 <- readLines("training_ME19_genes.txt")
+genes2 <- readLines("training_DEGs.txt")
+
+common_genes <- intersect(genes1, genes2)
+
+print(common_genes)
+
+writeLines(common_genes, "common_genes_UC.txt")
+```
+
+## Hub-genes для Me19
+```{r}
+module_genes <- common_genes
+
+datExpr_module <- input_mat_top7500[, module_genes, drop = FALSE]
+
+adj_module <- adjacency(datExpr_module, power = picked_power, type = "signed")
+
+kWithin <- intramodularConnectivity(adj_module, colors = rep(module_number, length(module_genes)))
+
+top_hubs <- kWithin[order(-kWithin$kWithin), ]
+head(top_hubs, 10)
+```
