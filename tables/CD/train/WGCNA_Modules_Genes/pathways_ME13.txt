@@ -1,0 +1,22 @@
+ID	Description
+GO:0009952	anterior/posterior pattern specification
+GO:0006821	chloride transport
+GO:0006820	monoatomic anion transport
+GO:0015698	inorganic anion transport
+GO:0051222	positive regulation of protein transport
+GO:0051223	regulation of protein transport
+GO:0008202	steroid metabolic process
+GO:0050714	positive regulation of protein secretion
+GO:1903532	positive regulation of secretion by cell
+GO:0016125	sterol metabolic process
+GO:0051047	positive regulation of secretion
+GO:0008203	cholesterol metabolic process
+GO:0046165	alcohol biosynthetic process
+GO:0007389	pattern specification process
+GO:0006066	alcohol metabolic process
+GO:0015711	organic anion transport
+GO:0062012	regulation of small molecule metabolic process
+GO:0050708	regulation of protein secretion
+GO:0016126	sterol biosynthetic process
+GO:1902652	secondary alcohol metabolic process
+GO:0048704	embryonic skeletal system morphogenesis
