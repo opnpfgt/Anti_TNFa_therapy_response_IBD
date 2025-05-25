@@ -1,0 +1,98 @@
+---
+title: "Training_UC_data_preprocessing"
+author: "Arthur Lee"
+output: html_document
+date: '2025-03-24'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path) 
+setwd(main_dir)
+```
+## Required Libraries:
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tibble)
+library(tidyverse)
+library(writexl)
+library(GEOquery)
+library(affy)
+```
+
+## Uploading metadata for a dataset
+
+```{r message=FALSE, warning=FALSE}
+gse97 <- getGEO(GEO = 'GSE12251', GSEMatrix = TRUE)
+metadata <- pData(phenoData(gse97[[1]]))
+```
+
+### Selecting useful columns
+
+```{r}
+colnames(metadata)
+metadata_edited <- metadata %>%
+  dplyr::select('title', 'geo_accession', 'WK8RSPHM:ch1') %>%
+  dplyr::rename(response = 'WK8RSPHM:ch1') %>%
+  separate(title, into = c("Patient", "Dose"), sep = "/", extra = "drop", remove = FALSE)
+metadata_edited$title <- NULL
+```
+
+## Downloading raw data
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+
+# get supplementary files
+# getGEOSuppFiles("GSE12251")
+# untar files
+# untar("GSE12251_RAW.tar", exdir = 'GSE12251_data')
+
+raw.data <- ReadAffy(celfile.path = "GSE12251_data")
+```
+
+### RMA - Normalization
+
+```{r message=FALSE, warning=FALSE}
+normalized.data <- rma(raw.data)
+normalized.expr <- as.data.frame(exprs(normalized.data))
+```
+
+### Adding the column 'Gene.Symbol'
+
+And deleting lines without annotations
+
+```{r message=FALSE, warning=FALSE}
+feature.data <- gse97$GSE12251_series_matrix.txt.gz@featureData@data
+feature.data <- feature.data[, c(1,11)]
+feature.data <- feature.data %>%
+  dplyr::rename(Gene.Symbol = "Gene Symbol")
+
+normalized.expr <- normalized.expr %>%
+  rownames_to_column(var = "ID")
+
+gene_normalized.expr <- inner_join(normalized.expr, feature.data, by = "ID")
+
+
+filtered_gene_normalized.expr <- gene_normalized.expr %>%
+  filter(Gene.Symbol != "" & !is.na(Gene.Symbol))
+```
+
+### Grouping by Gene.Symbol and calculation of the average expression value
+
+```{r message=FALSE, warning=FALSE}
+
+mean_norm.expr <- filtered_gene_normalized.expr %>%
+  group_by(`Gene.Symbol`) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+```
+
+As a result, we get two files.
+
+```{r}
+write_xlsx(mean_norm.expr, "mean_norm.expr.xlsx")
+write_xlsx(metadata_edited, "metadata.xlsx")
+```
