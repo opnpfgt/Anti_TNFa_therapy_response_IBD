@@ -2353,9 +2353,6 @@ module_df_7500 <- data.frame(
 
 module_df_7500[1:5,]
 
-readr::write_delim(module_df_7500,
-            file = "gene_modules_7500.txt",
-            delim = "\t")
 ```
 
 ```{r}
