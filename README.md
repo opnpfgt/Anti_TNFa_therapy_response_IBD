@@ -1,38 +1,39 @@
 # Transcriptome-based prediction of anti-TNFα treatment outcomes in inflammatory bowel diseases
-This repository contains code and data from a study identifying potential transcriptomic biomarkers of response to anti-TNFα therapy in inflammatory bowel disease (IBD). The research was conducted at the Bioinformatics Institute (2024-2025).
+This repository contains code and data from the study identifying potential transcriptomic biomarkers of response to anti-TNFα therapy in inflammatory bowel disease (IBD). The research was conducted at the Bioinformatics Institute (2024-2025).
 
 ### Contributors
 #### Authors:
-* Galina Reshetnikova,
-*Bioinformatics Institute, St. Petersburg, Russia*,
+* Galina Reshetnikova,  
+*Bioinformatics Institute, St. Petersburg, Russia*     
 galina.reshetnikova@helsinki.fi
 
-* Ekaterina Scheglova,
-*Moscow Institute of Physics and Technology, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*,
+* Ekaterina Scheglova,  
+*Moscow Institute of Physics and Technology, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
 scheglova.es@phystech.edu
 
-* Aleksei Osipov,
-*ITMO University, St. Petersburg, Russia, Bioinformatics Institute, St. Petersburg, Russia*,
+* Aleksei Osipov,   
+*ITMO University, St. Petersburg, Russia, Bioinformatics Institute, St. Petersburg, Russia*    
 osipov.natgordon@gmail.com
 
-* Artur Lee,
-*Koltzov Institute of Developmental Biology RAS, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*,
+* Artur Lee,    
+*Koltzov Institute of Developmental Biology RAS, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
 aal1999arth@gmail.com
 
 #### Scientific advisor:
-* Mariia Saliutina,
-*Charité - University Medicine Berlin, Germany, Bioinformatics Institute, St. Petersburg, Russia*,
+* Mariia Saliutina,     
+*Charité - University Medicine Berlin, Germany, Bioinformatics Institute, St. Petersburg, Russia*  
 mariia.saliutina@charite.de
 
 # Goal
 Identify transcriptomic markers associated with treatment response by comparing gene expression profiles in responders and non-responders before anti-TNF-α therapy
 
 # Introduction
-Inflammatory bowel diseases (IBD), including ulcerative colitis (UC) and Crohn's disease (CD), are chronic inflammatory disorders that significantly reduce the quality of life of millions of people worldwide. Despite sharing key inflammatory mechanisms, UC and CD differ significantly in their clinical and pathological features. During UC, only the mucosal layers of the colon and rectum are affected. In contrast, during CD, any part of the gastrointestinal tract with transmural inflammation can be affected, leading to complications such as fistulas, strictures, and abscesses. 
-One of the key immunotherapeutic strategies for IBD treatment is the use of tumor necrosis factor-α (TNF-α) inhibitors, such as infliximab, a chimeric monoclonal antibody that blocks the activity of TNF-α. Despite the overall efficacy of TNF-α blockers, many patients do not experience a clinical response to this therapy. This study aims to identify transcriptomic markers associated with treatment response by comparing gene expression profiles in responders and non-responders before anti-TNF-α therapy. These findings may support the development of personalized treatment strategies and improve overall therapeutic outcomes.
+Inflammatory bowel diseases (IBD), including ulcerative colitis (UC) and Crohn’s disease (CD), are chronic inflammatory disorders characterized by significant interindividual variability in disease progression and therapeutic response. Among the main treatment strategies are tumor necrosis factor-α (TNF-α) inhibitors, such as infliximab. Despite their widespread use, a substantial proportion of patients (up to 40%) fail to respond to anti-TNF therapy, highlighting the need to identify molecular predictors of treatment resistance and to better understand the underlying mechanisms.
+In this study, we performed an integrated transcriptomic analysis (bulk and single-cell RNA-seq) to identify key components of the innate immune response associated with non-responsiveness to anti-TNF therapy.
 
 
-# Datasets
+
+# Data
 
 **UC cohorts:**
 - **GSE12251** – UC train; 23 patients (12 non-responders, 11 responders)
@@ -44,7 +45,27 @@ One of the key immunotherapeutic strategies for IBD treatment is the use of tumo
 responders, single-cell RNA-seq)
 - **GSE57945** - Bulk RNA-seq analysis of CD/healthy gene signatures. 359 patients (218 - CD, 42 - Not IBD, 99 - UC)
 
+# Tools
 
+This project makes use of the following bioinformatics and data analysis tools:
+
+GEOquery (v2.74.0) — for downloading gene expression datasets from the GEO database.
+
+limma (v3.52.2) — for differential gene expression (DEG) analysis.
+
+WGCNA (v1.73) — for weighted gene co-expression network analysis.
+
+clusterProfiler (v4.6.4) — for gene set enrichment analysis (GSEA).
+
+STRING — to build protein-protein interaction (PPI) networks.
+
+Cytoscape (v3.0+) with CytoHubba plugin — for identifying hub genes in PPI networks.
+
+scanpy (v1.11.1) — for processing and analyzing single-cell RNA-seq data.
+
+RStudio — used for R-based analyses (e.g., limma, WGCNA, enrichment).
+
+Python — used primarily for single-cell data handling and machine learning.
 
 # Workflow
 Reseacrh workflow is comprised of the following steps
@@ -54,26 +75,110 @@ Reseacrh workflow is comprised of the following steps
 
 # Results
 
-## Crohn disease
+## 1. DEG analysis
 
+DEG analysis allowed us to evaluate relative differences in expression profiles of responders and non-responders, exhibiting mostly upregulated genes among non-responders.
 
-![DEGS_CD](images/UC/train/plot_deg_uc_train.png)
-   
+<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
+  <div style="width: 45%; text-align: center;">
+    <img src="images/UC/train/plot_deg_uc_train.png" alt="UC Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">Volcano plot UC</p>
+  </div>
+  <div style="width: 45%; text-align: center;">
+    <img src="images/CD/train/DEGs/DEGs_CD_Results/4_CD_Volcano_NR_vs_R_Before.png" alt="CD Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">Volcano plot CD</p>
+  </div>
+</div>
 
+## 2. WGCNA
 
-For crohn
+After DEG identification the most correlated modules of genes were found using WGCNA. 
+
+<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
+  <div style="width: 45%; text-align: center;">
+    <img src="images/UC/train/corlevelplot_heatmap_wgcna_uc_train.png" alt="WGCNA heatmap of UC" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">WGCNA heatmap of UC modules</p>
+  </div>
+  <div style="width: 45%; text-align: center;">
+    <img src="images/CD/train/WGCNA_CD_7500_Results/WGCNA_plot.png" alt="WGCNA heatmap of CD" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">WGCNA heatmap of CD modules</p>
+  </div>
+</div>
+
+The modules were compared to the Differentially Expressed Genes (DEGs) and Gene Set Enreichment were conducted for matching gene lists.
+
+<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
+  <div style="width: 45%; text-align: center;">
+    <img src="images/UC/train/venn_plot_uc_train.png" alt="venn_diagram_UC" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">Venn diagram for UC related modules</p>
+  </div>
+  <div style="width: 45%; text-align: center;">
+    <img src="images/CD/train/venn_diagram.png" alt="venn_diagram_CD" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">Venn diagram for CD related modules</p>
+  </div>
+</div>
+
+<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
+  <div style="width: 45%; text-align: center;">
+    <img src="images/UC/train/go_dotplot_uc_train.png" alt="UC Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">GO analysis for UC associated modules</p>
+  </div>
+  <div style="width: 45%; text-align: center;">
+    <img src="images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_4.png" alt="CD Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">GO analysis for CD associated modules</p>
+  </div>
+</div>
+
+This allowed us to identify several pathways responsible for leucocyte adhesion, migration and cytokine related pathways.
+
+## 3. Hub genes identification
+
+After that the the following potential hub genes were identified for UC and CD.
+
 |![hub_genes](images/hub_genes.png)|
 |:-----------------------------------:|
-| *Hub genes identified during the study*          |
+| *Hub genes identified during the study. The colors correspond to the particular group of genes: CD specific - blue, UC specific - green, common genes - yellow*          |
 
+In UC, five key genes — IL1B, IL6, CXCL8, TLR2, and TLR4-were common to CD and are mainly involved in innate immune responses. In addition, ITGAM and S100A12 have become UC-specific markers reflecting increased neutrophil infiltration. 
+
+In CD, we similarly identified common immune-related hub genes (IL1B, IL6, CXCL8, TLR2, TLR4), as well as CD-specific markers associated with tissue remodeling and fibrosis — TGFB1, TIMP1, MMP2, and PECAM1 using results of pseudobulk analysis.
+
+## 4. Validation and work with scRNA-seq data
+
+### Ulcerative Colitis
+
+The ROC-AUC analysis and logistic regression was then conducted in order to identify predictive ability of the genes common for CD and UC.
+
+<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
+<div style="width: 45%; text-align: center;">
+    <img src="images/UC/validation/roc_auc_each_gene.png" alt="ROC-AUC" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">ROC-AUC curve for each gene</p>
+</div>
+<div style="width: 45%; text-align: center;">
+    <img src="images/UC/validation/roc_logistic_model.png" alt="Log regression" style="width: 100%; max-width: 500px; height: auto;">
+    <p style="font-style: italic; margin-top: 5px;">Logistic regression plot for combined model</p>
+</div>
+</div>
+
+The logistic regression model based on a common set of genes demonstrated high predictive efficiency (AUC = 0.829), with IL6 (AUC = 0.817) and IL1B (AUC = 0.771) being the most informative individual predictors.
+
+### Crohn Disease
+
+The performance of the ROC-AUC for single common genes were lower compared to the UC, exhibiting the valuable scores only for IL6 (AUC = 0.53) and IL1B (AUC = 0.68), whereas the logistic regression model demonstrated the AUC score = 0.83. 
+
+|![ROC_AUC_CD](images/CD/validation/single_cell/roc_combined_model_vs_genes.png)|
+|:-----------------------------------:|
+| *ROC-curves for indvivdual genes and combined model in CD*          |
+
+Analysis of the single-cell RNA-seq dataset also revealed a significantly higher proportion of monocytes with low IL1B levels among the respondents (p < 0.05), indicating a potential functional phenotype associated with better treatment outcomes.
+
+|![IL1B_lohi](images/CD/validation/single_cell/proportions_of_hi_and_lo_IL1B.png)|
+|:-----------------------------------:|
+| *Cell population expressing high (IL1Bhi) and low (IL1Blo) levels of IL1B. IL1Bhi_percent: Mann–Whitney U p-value = 0.635, IL1Blo_percent: Mann–Whitney U p-value = 0.011*          |
 
 # Conclusion
 
-Our analysis revealed key transcriptomic markers predicting the therapeutic response to anti-TNFa therapy in both ulcerative colitis (UC) and Crohn's disease (CD). In UC, five concentrator genes — IL1B, IL6, CXCL8, TLR2, and TLR4-were common to CD and are mainly involved in innate immune responses. In addition, ITGAM and S100A12 have become UC-specific markers reflecting increased neutrophil infiltration. The logistic regression model based on a common set of genes demonstrated high predictive efficacy (AUC = 0.829), with IL6 (AUC = 0.817) and IL1B (AUC = 0.771) being the most informative individual predictors.
-
-In CD, we similarly identified common immune-related concentrator genes (IL1B, IL6, CXCL8, TLR2, TLR4), as well as CD-specific markers associated with tissue remodeling and fibrosis — TGFB1, TIMP1, MMP2, and PECAM1. Analysis of the single-cell RNA-seq dataset revealed a significantly higher proportion of monocytes with low IL1B levels among the respondents (p < 0.05), indicating a potential functional phenotype associated with better treatment outcomes.
-
-Taken together, these data highlight that IL1B, IL6, CXCL8, TLR2, and TLR4 are central markers of nonresponse to infliximab in IBD, and identify both common and disease-specific transcriptomic features that may determine personalized therapy strategies.
+Taken together, our results demonstrate that dysregulation of innate immune pathways — particularly IL1B- and TLR-mediated signaling — is a key determinant of resistance to anti-TNF therapy. These findings underscore the importance of incorporating innate immune activation status into patient stratification strategies and support the development of personalized treatment approaches based on molecular immune profiling.
 
 
 # References
