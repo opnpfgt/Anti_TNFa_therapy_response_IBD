@@ -79,52 +79,61 @@ Reseacrh workflow is comprised of the following steps
 
 DEG analysis allowed us to evaluate relative differences in expression profiles of responders and non-responders, exhibiting mostly upregulated genes among non-responders.
 
-<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
-  <div style="width: 45%; text-align: center;">
-    <img src="images/UC/train/plot_deg_uc_train.png" alt="UC Volcano" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">Volcano plot UC</p>
-  </div>
-  <div style="width: 45%; text-align: center;">
-    <img src="images/CD/train/DEGs/DEGs_CD_Results/4_CD_Volcano_NR_vs_R_Before.png" alt="CD Volcano" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">Volcano plot CD</p>
-  </div>
-</div>
+|![hub_genes](images/UC/train/plot_deg_uc_train.png)|
+|:-----------------------------------:|
+| *Volcano plot UC (log₂FC > 1)*          |
+
+
+
+|![hub_genes](images/CD/train/DEGs/DEGs_CD_Results/4_CD_Volcano_NR_vs_R_Before.png)|
+|:-----------------------------------:|
+| *Volcano plot CD (log₂FC > 1)*          |
 
 ## 2. WGCNA
 
 After DEG identification the most correlated modules of genes were found using WGCNA. 
 
-<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
-  <div style="width: 45%; text-align: center;">
-    <img src="images/UC/train/corlevelplot_heatmap_wgcna_uc_train.png" alt="WGCNA heatmap of UC" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">WGCNA heatmap of UC modules</p>
-  </div>
-  <div style="width: 45%; text-align: center;">
-    <img src="images/CD/train/WGCNA_CD_7500_Results/WGCNA_plot.png" alt="WGCNA heatmap of CD" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">WGCNA heatmap of CD modules</p>
-  </div>
-</div>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="images/UC/train/corlevelplot_heatmap_wgcna_uc_train.png" alt="UC" style="max-width: 100%;">
+    </td>
+    <td width="50%" align="center">
+      <img src="images/CD/train/WGCNA_CD_7500_Results/WGCNA_plot.png" alt="CD" style="max-width: 100%;">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><em>Heatmap of gene co-expression modules in UC identified by WGCNA.  
+*Color scale represents topological overlap (TOM) between genes in the most significantly enriched module (turquoise)</em></td>
+    <td align="center"><em>Heatmap of gene co-expression modules in CD identified by WGCNA.  
+*Color scale represents topological overlap (TOM) between genes in the most significantly enriched module (turquoise)</em></td>
+  </tr>
+</table>
 
 The modules were compared to the Differentially Expressed Genes (DEGs) and Gene Set Enreichment were conducted for matching gene lists.
 
-<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
-  <div style="width: 45%; text-align: center;">
-    <img src="images/UC/train/venn_plot_uc_train.png" alt="venn_diagram_UC" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">Venn diagram for UC related modules</p>
-  </div>
-  <div style="width: 45%; text-align: center;">
-    <img src="images/CD/train/venn_diagram.png" alt="venn_diagram_CD" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">Venn diagram for CD related modules</p>
-  </div>
-</div>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="images/UC/train/venn_plot_uc_train.png" alt="UC" style="max-width: 100%;">
+    </td>
+    <td width="50%" align="center">
+      <img src="images/CD/train/venn_diagram.png" alt="CD" style="max-width: 100%;">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><em>Venn diagram for UC related modules</em></td>
+    <td align="center"><em>Venn diagram for CD related modules</em></td>
+  </tr>
+</table>
 
 <div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
   <div style="width: 45%; text-align: center;">
-    <img src="images/UC/train/go_dotplot_uc_train.png" alt="UC Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <img src="images/UC/train/go_dotplot_uc_train.png" alt="UC Volcano" style="width: 70%; max-width: 500px; height: auto;">
     <p style="font-style: italic; margin-top: 5px;">GO analysis for UC associated modules</p>
   </div>
   <div style="width: 45%; text-align: center;">
-    <img src="images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_4.png" alt="CD Volcano" style="width: 100%; max-width: 500px; height: auto;">
+    <img src="images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_4.png" alt="CD Volcano" style="width: 100%; max-width: 800px; height: auto;">
     <p style="font-style: italic; margin-top: 5px;">GO analysis for CD associated modules</p>
   </div>
 </div>
@@ -149,16 +158,20 @@ In CD, we similarly identified common immune-related hub genes (IL1B, IL6, CXCL8
 
 The ROC-AUC analysis and logistic regression was then conducted in order to identify predictive ability of the genes common for CD and UC.
 
-<div style="display: flex; justify-content: center; gap: 30px; align-items: flex-start;">
-<div style="width: 45%; text-align: center;">
-    <img src="images/UC/validation/roc_auc_each_gene.png" alt="ROC-AUC" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">ROC-AUC curve for each gene</p>
-</div>
-<div style="width: 45%; text-align: center;">
-    <img src="images/UC/validation/roc_logistic_model.png" alt="Log regression" style="width: 100%; max-width: 500px; height: auto;">
-    <p style="font-style: italic; margin-top: 5px;">Logistic regression plot for combined model</p>
-</div>
-</div>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="images/UC/validation/roc_auc_each_gene.png" alt="each_gene" style="max-width: 100%;">
+    </td>
+    <td width="50%" align="center">
+      <img src="images/UC/validation/roc_logistic_model.png" alt="Log regression" style="max-width: 100%;">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><em>ROC-AUC curve for each gene</em></td>
+    <td align="center"><em>Logistic regression plot for combined model</em></td>
+  </tr>
+</table>
 
 The logistic regression model based on a common set of genes demonstrated high predictive efficiency (AUC = 0.829), with IL6 (AUC = 0.817) and IL1B (AUC = 0.771) being the most informative individual predictors.
 
