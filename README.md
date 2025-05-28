@@ -110,19 +110,15 @@ After DEG identification the most correlated modules of genes were found using W
   </tr>
 </table>
 
-The modules were compared to the Differentially Expressed Genes (DEGs) and Gene Set Enreichment were conducted for matching gene lists.
+The modules were compared to the Differentially Expressed Genes (DEGs) and Gene Set Enrichment were conducted for matching gene lists.
 
 <table>
   <tr>
-    <td width="50%" align="center">
-      <img src="images/UC/train/venn_plot_uc_train.png" alt="UC" style="max-width: 100%;">
-    </td>
-    <td width="50%" align="center">
+    <td align="center">
       <img src="images/CD/train/venn_diagram.png" alt="CD" style="max-width: 100%;">
     </td>
   </tr>
   <tr>
-    <td align="center"><em>Venn diagram for UC related modules</em></td>
     <td align="center"><em>Venn diagram for CD related modules</em></td>
   </tr>
 </table>
@@ -142,7 +138,7 @@ This allowed us to identify several pathways responsible for leucocyte adhesion,
 
 ## 3. Hub genes identification
 
-After that the the following potential hub genes were identified for UC and CD.
+After that the following potential hub genes were identified for UC and CD.
 
 |![hub_genes](images/hub_genes.png)|
 |:-----------------------------------:|
