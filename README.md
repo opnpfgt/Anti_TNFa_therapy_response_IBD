@@ -1,29 +1,6 @@
 # Transcriptome-based prediction of anti-TNFα treatment outcomes in inflammatory bowel diseases
 This repository contains code and data from the study identifying potential transcriptomic biomarkers of response to anti-TNFα therapy in inflammatory bowel disease (IBD). The research was conducted at the Bioinformatics Institute (2024-2025).
 
-### Contributors
-#### Authors:
-* Galina Reshetnikova,  
-*Bioinformatics Institute, St. Petersburg, Russia*     
-galina.reshetnikova@helsinki.fi
-
-* Ekaterina Scheglova,  
-*Moscow Institute of Physics and Technology, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
-scheglova.es@phystech.edu
-
-* Aleksei Osipov,   
-*ITMO University, St. Petersburg, Russia, Bioinformatics Institute, St. Petersburg, Russia*    
-osipov.natgordon@gmail.com
-
-* Artur Lee,    
-*Koltzov Institute of Developmental Biology RAS, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
-aal1999arth@gmail.com
-
-#### Scientific advisor:
-* Mariia Saliutina,     
-*Charité - University Medicine Berlin, Germany, Bioinformatics Institute, St. Petersburg, Russia*  
-mariia.saliutina@charite.de
-
 # Goal
 Identify transcriptomic markers associated with treatment response by comparing gene expression profiles in responders and non-responders before anti-TNF-α therapy
 
@@ -36,14 +13,23 @@ In this study, we performed an integrated transcriptomic analysis (bulk and sing
 # Data
 
 **UC cohorts:**
-- **GSE12251** – UC train; 23 patients (12 non-responders, 11 responders)
-- **GSE23597** – UC validation; 32 patients (25 non-responders, 7 responders)
+- [**GSE12251**](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE12251) – UC train; 23 patients (12 non-responders, 11 responders)
+- [**GSE23597**](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE23597) – UC validation; 32 patients (25 non-responders, 7 responders)
 
 **CD cohorts:**
-- **GSE16879** – CD train; 37 patients (17 non-responders, 20 responders)
-- **GSE282122** – *Single cell CD validation; 14 patients (8 non-responders, 6 
+- [**GSE16879**](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE16879) – CD train; 37 patients (17 non-responders, 20 responders)
+- [**GSE282122**](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE282122) – *Single cell CD validation; 14 patients (8 non-responders, 6 
 responders, single-cell RNA-seq)
-- **GSE57945** - Bulk RNA-seq analysis of CD/healthy gene signatures. 359 patients (218 - CD, 42 - Not IBD, 99 - UC)
+- [**GSE57945**](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE57945) - Bulk RNA-seq analysis of CD/healthy gene signatures. 359 patients (218 - CD, 42 - Not IBD, 99 - UC)
+
+# System Requirements
+
+* Memory (RAM): 32 GB
+* Operating System: Ubuntu Linux (preferred for bioinformatics) or macOS.
+* Processor (CPU): 4 cores (Intel i5 or AMD Ryzen 5). Note: A multi-core processor will help speed up processing, but 4 cores should suffice for smaller or less complex analyses.
+*  Storage: 40 GB. SSD storage is highly recommended for faster data processing.
+
+
 
 # Tools
 
@@ -57,15 +43,15 @@ WGCNA (v1.73) — for weighted gene co-expression network analysis.
 
 clusterProfiler (v4.6.4) — for gene set enrichment analysis (GSEA).
 
-STRING — to build protein-protein interaction (PPI) networks.
+[STRING (v12.0)](https://string-db.org/) — to build protein-protein interaction (PPI) networks.
 
 Cytoscape (v3.0+) with CytoHubba plugin — for identifying hub genes in PPI networks.
 
 scanpy (v1.11.1) — for processing and analyzing single-cell RNA-seq data.
 
-RStudio — used for R-based analyses (e.g., limma, WGCNA, enrichment).
+R 4.5.0, RStudio 2025.05.1+513 — used for R-based analyses (e.g., limma, WGCNA, enrichment).
 
-Python — used primarily for single-cell data handling and machine learning.
+python 3.11.9 — used primarily for single-cell data handling and machine learning.
 
 # Workflow
 Reseacrh workflow is comprised of the following steps
@@ -197,3 +183,27 @@ Taken together, our results demonstrate that dysregulation of innate immune path
 4. Ngoh, E. N., Weisser, S. B., Lo, Y., Kozicky, L. K., Jen, R., Brugger, H. K., ... & Sly, L. M. (2016). Activity of SHIP, which prevents expression of interleukin 1β, is reduced in patients with Crohn’s disease, Gastroenterology, 150(2): 465-476.
 5. Tan, Y., Zou, K. F., Qian, W., Chen, S., & Hou, X. H. (2014). Expression and implication of toll-like receptors TLR2, TLR4, and TLR9 in colonic mucosa of patients with ulcerative colitis, Journal of Huazhong University of Science and Technology [Medical Sciences], 34: 785-790.
 6. Gole, B., Pernat, C., Jezernik, G., & Potočnik, U. (2023). The expression IL1B correlates negatively with the clinical response to adalimumab in Crohn's disease patients: An ex vivo approach using peripheral blood mononuclear cells, Life Sciences, 326: 121822.
+
+
+### Contributors
+#### Authors:
+* Galina Reshetnikova,  
+*Bioinformatics Institute, St. Petersburg, Russia*     
+galina.reshetnikova@helsinki.fi
+
+* Ekaterina Scheglova,  
+*Moscow Institute of Physics and Technology, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
+scheglova.es@phystech.edu
+
+* Aleksei Osipov,   
+*ITMO University, St. Petersburg, Russia, Bioinformatics Institute, St. Petersburg, Russia*    
+osipov.natgordon@gmail.com
+
+* Artur Lee,    
+*Koltzov Institute of Developmental Biology RAS, Moscow, Russia, Bioinformatics Institute, St. Petersburg, Russia*     
+aal1999arth@gmail.com
+
+#### Scientific advisor:
+* Mariia Saliutina,     
+*Charité - University Medicine Berlin, Germany, Bioinformatics Institute, St. Petersburg, Russia*  
+mariia.saliutina@charite.de
