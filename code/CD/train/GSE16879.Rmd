@@ -6,7 +6,7 @@ output: html_document
 ---
 Загрузка библиотек:
 ```{r}
-source("req.R") # если не установлен knitr, то следует запустить эту строку в консоли.
+source("req.R") # if knitr is not installed, run this string in consol
 devtools::install_github("kevinblighe/CorLevelPlot")
 ```
 
@@ -54,31 +54,31 @@ setwd(main_dir)
 ```
 # Обзор датасета
 
-Информация о датасете:
+Info:
 Mucosal biopsies were obtained at endoscopy in actively inflamed mucosa from 61 IBD patients:
 - 24 ulcerative colitis (UC), 
 - 19 Crohn’s colitis (CDc), 
 - 18 Crohn’s ileitis (CDi)), 
 refractory to corticosteroids and/or immunosuppression, before and 4-6 weeks after (except for 1 CDc patient) their first infliximab infusion and in normal mucosa from 12 control patients (6 colon and 6 ileum). The patients were classified for response to infliximab based on endoscopic and histologic findings at 4-6 weeks after first infliximab treatment. Total RNA was isolated from intestinal mucosal biopsies, labelled and hybridized to Affymetrix Human Genome U133 Plus 2.0 Arrays.
 ```{r}
-# скачиваем данные
+# Download the data
 gse_16879 <- getGEO("GSE16879")
 ```
-## Метаданные
-Загружаем метаданные
+## Metadata
+Load the data
 ```{r}
 # get metadata
 metadata <- pData(phenoData(gse_16879[[1]]))
 ```
 
-Сохраним полезные столбцы для удобства работы
+Save useful columns
 ```{r}
 # edit table
 metadata <- metadata %>% dplyr::select(geo_accession, title, source_name_ch1, `tissue:ch1`, `response to infliximab:ch1`, `disease:ch1`, `before or after first infliximab treatment:ch1`)
 
 ```
 
-Переименуем столбцы, чтобы было удобнее к ним обращаться
+Rename columns
 
 ```{r}
 metadata <- metadata %>%
@@ -94,44 +94,45 @@ metadata <- metadata %>%
 
 ```
 
+Save the metadata about groups that should be compared
 Сохраню отдельно метаданные о группах, которые буду сравнивать
 ```{r}
-# 1. ВСЕ до лечения
+# 1. All before treatment
 meta_all_beforeT <- metadata %>%
   filter(grepl("beforeT", Title))
 
-# 2. ВСЕ после лечения
+# 2. All after treatment
 meta_all_afterT <- metadata %>%
   filter(grepl("afterT", Title))
 
-# 3. Респондеры ДО лечения
+# 3. Responders before treatment
 meta_all_R_beforeT <- metadata %>%
   filter(grepl("(?<!N)R[0-9]*_beforeT", Title, perl = TRUE))
 
-# 4. Респондеры ПОСЛЕ лечения
+# 4. Responders after treatment
 meta_all_R_afterT <- metadata %>%
   filter(grepl("(?<!N)R[0-9]*_afterT", Title, perl = TRUE))
 # для CDcR2 есть информация только ДО лечения, а после -- нет.
 
-# 5. НЕреспондеры ДО лечения
+# 5. Non-responders before treatment
 meta_all_NR_beforeT <- metadata %>%
   filter(grepl("NR[0-9]*_beforeT", Title, perl = TRUE))
 
-# 6. НЕреспондеры ПОСЛЕ лечения
+# 6. Npn-responders after treatment
 meta_all_NR_afterT <- metadata %>%
   filter(grepl("NR[0-9]*_afterT", Title, perl = TRUE))
 
 ```
 
-## Нормализация данных об экспрессии
+## Normalize expression data
 
-Скачиваем данные по экспрессии и нормализуем их
+Download expression data and normalize it
 
 ```{r}
 # get supplementary files
 getGEOSuppFiles("GSE16879", baseDir = '../../../data/CD/train')
 
-# если скачивание падает с ошибкой, то следует скачать данные напрямую в папку data/CD/train по ссылке (https://ftp.ncbi.nlm.nih.gov/geo/series/GSE16nnn/GSE16879/suppl//GSE16879_RAW.tar?tool=geoquery), создать папку GSE16879 и положить туда скачанный архив с данными (GSE16879_RAW.tar)
+# If the download fails with an error, then you should download the data directly to the data/CD/train folder using the link (https://ftp.ncbi.nlm.nih.gov/geo/series/GSE16nnn/GSE16879/suppl//GSE16879_RAW.tar?tool=geoquery ), create a folder GSE16879 and put the downloaded archive with data there (GSE16879_RAW.tar)
 ```
 
 ```{r}
@@ -152,7 +153,7 @@ colnames(normalized.expr) <- gsub("\\.CEL\\.gz$", "", colnames(normalized.expr))
 ```
 
 
-Теперь к каждой пробе из normalized.expr добавим значение Gene.Symbol для него
+Now we will add the Gene.Symbol to each sample from normalized.expr.
 
 ```{r}
 # map probe IDs to gene symbols
@@ -174,10 +175,10 @@ gene_normalized.expr <- inner_join(normalized.expr, feature.data, by = "ID")
 ```
 
 
-Пропуски в gene_normalized.expr стоит удалить:
+Gaps from gene_normalized.expr should be deleted:
 
 ```{r}
-# заменим Gene Symbol на Gene.Symbol
+# Replace Gene Symbol to Gene.Symbol
 
 gene_normalized.expr <- gene_normalized.expr %>%
   dplyr::rename(Gene.Symbol = `Gene Symbol`)
@@ -188,12 +189,12 @@ filtered_gene_normalized.expr <- gene_normalized.expr %>%
 nrow(gene_normalized.expr)-nrow(filtered_gene_normalized.expr)
 
 ```
-Итого удалили 8893 строки, где не было Gene.Symbol
+ 8893 strings without Gene.Symbol were deleted 
 
 
-Некоторым пробам соответствуют одни и те же гены, поэтому найдем повторяющиеся гены и усредним значения
+Some samples correspond to the same genes, so we will find duplicate genes and average the values
 ```{r}
-# Группируем данные по Gene Symbol и считаем среднее значение экспрессии
+# We group the data by Gene Symbol and calculate the average expression value
 mean_norm.expr <- filtered_gene_normalized.expr %>%
   group_by(`Gene.Symbol`) %>%
   summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE)))
@@ -202,78 +203,79 @@ write.table(mean_norm.expr, "../../../tables/CD/train/mean_norm.expr.tsv", sep =
 ```
 
 # PCA
-Теперь, имея усредненные значения экспрессий, можем провести PCA.
+Now, having averaged expression values, we can perform PCA.
 
 ```{r}
 mean_norm.expr <- read.table("../../../tables/CD/train/mean_norm.expr.tsv", sep = "\t", header=TRUE)
 
-# Для РСА должна быть матрица без строк, поэтому отфильтруем имена генов
+# For PCA, there should be a matrix without rows, so let's filter out the names of the genes.
 pca_matrix <- mean_norm.expr %>%
   dplyr::select(-Gene.Symbol) %>%
   as.matrix()
 
-# Отдельно сохраним названия генов
+# Save gene names separately
 gene_symbols <- mean_norm.expr$Gene.Symbol
 
-# Транспонируем матрицу
+# Transpose matrix
 pca_matrix <- t(pca_matrix)
 
-# Обычно в вузе РСА делали при помощи библиотеки vegan, но может есть какие-то более хорошие альтернативы
+# In our Univrsity we usually preformed РСА with vegan library
 
 
-# Подготовка матрицы
+# Matrix preaparation
 pca_matrix_scaled <- decostand(pca_matrix, method = "standardize")
 
 # PCA
 pca_vegan <- rda(pca_matrix_scaled, scale = TRUE)
 
-# summary(pca_vegan) -- слишком громоздкий вывод, лучше посмотреть на Scree график, чтобы понять вклад каждой из компонент
+# summary(pca_vegan) -- is too overloaded, Scree is better to evaluate components contribution
 
 screeplot(pca_vegan, main = "Scree Plot: PCA on Gene Expression")
 ```
-По графику видно, что первые 4 PC вносят довольно большой вклад. Далее я буду работать с РС1 и РС2, но пусть будут сохранены и РС3 и РС4, может, там будет что-то интересное и информативное
+We can see that first 4 PC make remarkable contribution. Further we will work with РС1 and РС2, but РС3 и РС4 are alse will be saved to find there other info if needed
 
 ```{r}
-# скачиваем значения первых четырёх компонент
+# Download the values of the first 4 components
 pca_scores <- scores(pca_vegan, display = "sites", choices = 1:4)
 pca_scores_df <- as.data.frame(pca_scores)
 
-# преобразуем rownames в столбец с ID
+# convert rownames into column with ID
 pca_scores_df <- pca_scores_df %>%
   rownames_to_column(var = "ID")
 
-# Объединим по ID значения PC и все метаданные
+# Merge PCs and metadata by ID
 pca_df <- dplyr::left_join(pca_scores_df, metadata, by = c("ID" = "Geo_accession"))
 
 ```
-Мы будем сравнивать группы, поэтому смерджим таблицы на основании групп сравнения
+We will be comparing groups, so we will build tables based on comparison groups.
 
 ```{r}
-# Первая группа сравнения: ВСЕ до и после лечения. Объединим таблицы all_beforeT и all_afterT
+# The first comparison group: EVERYTHING before and after treatment. Combine the all_beforeT and all_afterT tables
 meta_all_beforeT_and_afterT <- bind_rows(meta_all_beforeT, meta_all_afterT)
 pca_all_beforeT_and_afterT <- inner_join(pca_scores_df, meta_all_beforeT_and_afterT, by = c("ID" = "Geo_accession"))
 
-# Вторая группа сравнения: ВСЕ респондеры до и после лечения
+# The second comparison group: ALL respondents before and after treatment
 meta_R_beforeT_and_afterT <- bind_rows(meta_all_R_beforeT, meta_all_R_afterT)
 pca_R_beforeT_and_afterT <- inner_join(pca_scores_df, meta_R_beforeT_and_afterT, by = c("ID" = "Geo_accession"))
 
-# Третья группа сравнения: ВСЕ нереспондеры до и после лечения
+# The third comparison group: ALL nonresponders before and after treatment
 meta_NR_beforeT_and_afterT <- bind_rows(meta_all_NR_beforeT, meta_all_NR_afterT)
 pca_NR_beforeT_and_afterT <- inner_join(pca_scores_df, meta_NR_beforeT_and_afterT, by = c("ID" = "Geo_accession"))
 
-# Четвертая группа сравнения: респондеры ДО против нереспондеров ДО
+# The fourth comparison group: respondents BEFORE versus non-respondents BEFORE
 meta_RNR_beforeT <- bind_rows(meta_all_R_beforeT, meta_all_NR_beforeT)
 pca_RNR_beforeT <- inner_join(pca_scores_df, meta_RNR_beforeT, by = c("ID" = "Geo_accession"))
 
-# Пятая группа сравнения: респондеры ПОСЛЕ против нереспондеров ПОСЛЕ
+# The fifth comparison group: POST-responders versus non-responders AFTER
 meta_RNR_afterT <- bind_rows(meta_all_R_afterT, meta_all_NR_afterT)
 pca_RNR_afterT <- inner_join(pca_scores_df, meta_RNR_afterT, by = c("ID" = "Geo_accession"))
 ```
-## Все пациенты ДО и ПОСЛЕ
 
-1. Все группы ДО лечения и ПОСЛЕ лечения
+## All patients BEFORE and AFTER
+
+1. All groups BEFORE and AFTER treatment
 ```{r}
-# PCA-график для первой группы
+# PCA graph for the first group
 pca_1 <- ggplot(pca_all_beforeT_and_afterT, aes(x = PC1, y = PC2, color = Timeline)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
@@ -281,55 +283,54 @@ pca_1 <- ggplot(pca_all_beforeT_and_afterT, aes(x = PC1, y = PC2, color = Timeli
   scale_color_manual(values = c("red", "blue")) 
 
 ```
-## Респондеры ДО и ПОСЛЕ
-2. Респондеры ДО и респондеры ПОСЛЕ
+## Respondents BEFORE and AFTER
+2. Respondents BEFORE and respondents AFTER
 ```{r}
-# PCA-график для второй группы
+# PCA graph for the second group
 pca_2 <- ggplot(pca_R_beforeT_and_afterT, aes(x = PC1, y = PC2, color = Timeline)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
   theme_minimal() +
   scale_color_manual(values = c("red", "blue")) 
 ```
-## Нереспондеры ДО и ПОСЛЕ
-3. Нереспондеры ДО и нереспондеры ПОСЛЕ
+## Non-responders BEFORE and AFTER
+3. Nonresponders BEFORE and nonresponders AFTER
 ```{r}
-# PCA-график для третьей группы
+# PCA graph for the third group
 pca_3 <- ggplot(pca_NR_beforeT_and_afterT, aes(x = PC1, y = PC2, color = Timeline)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
   theme_minimal() +
   scale_color_manual(values = c("red", "blue")) 
 ```
-## Респондеры и Нереспондеры ДО
-4. Респондеры ДО и нереспондеры ДО
+## Responders and Non-Responders BEFORE
+4. Respondents BEFORE and non-respondents BEFORE
 ```{r}
-# PCA-график для четвертой группы
+# PCA graph for the fourth group
 pca_4 <- ggplot(pca_RNR_beforeT, aes(x = PC1, y = PC2, color = Response)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
   theme_minimal() +
   scale_color_manual(values = c("red", "blue")) 
 ```
-## Респондеры и Нереспондеры ПОСЛЕ
-5. Респондеры ПОСЛЕ и нереспондеры ПОСЛЕ
+## Responders and Non-Responders AFTER
+5. POST-responders and non-responders AFTER
 ```{r}
-# PCA-график для пятой группы
+# PCA graph for the fifth group
 pca_5 <- ggplot(pca_RNR_afterT, aes(x = PC1, y = PC2, color = Response)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
   theme_minimal() +
   scale_color_manual(values = c("red", "blue"))
 ```
-Нужно ли ещё какие-то группы смотреть? Например, какой-нибудь сводный график по болезням?
 
-## Все типы болезней (UC, Cdi, CDc, Control)
+## All types of diseases (UC, Cdi, CDc, Control)
 ```{r}
 pca_df$Disease <- as.factor(pca_df$Disease)
 pca_df$Response <- as.factor(pca_df$Response)
 
 
-# создаём новую колонку `Disease_Updated`
+# Make column `Disease_Updated`
 pca_df <- pca_df %>%
   dplyr::mutate(All_Types_Of_Diseases = case_when(
     Disease == "CD" & Tissue == "Ileum" ~ "CDi",
@@ -337,10 +338,10 @@ pca_df <- pca_df %>%
     TRUE ~ Disease
   ))
 
-# Проверяем, что получилось
+# Check what we obtained
 table(pca_df$All_Types_Of_Diseases)
 
-# PCA-график с цветами по диагнозу
+# PCA graph with colors by diagnosis
 pca_6 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = All_Types_Of_Diseases)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
@@ -348,10 +349,10 @@ pca_6 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = All_Types_Of_Diseases)) +
   scale_color_manual(values = c("red", "blue", "green", "black")) 
 
 ```
-## Все пациенты по респонсу (Yes, No, Control)
-Или по респонсу
+## All patients by response (Yes, No, Control)
+Or by response
 ```{r}
-# PCA-график с цветами по респонсу
+# PCA-graph with colors based on response
 pca_7 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = Response)) +
   geom_point(size = 4, alpha = 0.8) +
   labs(title = "PCA of IBD Patients (PC1 vs PC2)", x = "PC1", y = "PC2") +
@@ -359,7 +360,7 @@ pca_7 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = Response)) +
   scale_color_manual(values = c("red", "blue", "green", "black")) 
 ```
 
-## Сохранение графиков PCA
+## Save PCA graphs
 ```{r}
 dir.create("../../../images/CD/train/PCA", recursive = TRUE, showWarnings = FALSE) 
 
@@ -384,70 +385,69 @@ for (i in seq_along(pca_list)) {
 
 ```
 
-# Анализ дифференциальной экспрессии
+# Differential expression analysis
 
-## Все пациенты
+## All patients
 
-Преобразуем метаданные для более удобной работы
+Converting metadata for more convenient operation
 ```{r}
-# преобразуем before-after в метаданных:
-# 1. Преобразуем уровни фактора "Timeline"
+# convert the before-after to metadata:
+# 1. Convert the levels of the "Timeline" factor
 meta_all_beforeT_and_afterT$Timeline <- factor(meta_all_beforeT_and_afterT$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
 
-# 2. Преобразуем уровни фактора "Timeline"
+# 2. Converting the levels of the "Timeline" factor
 meta_R_beforeT_and_afterT$Timeline <- factor(meta_R_beforeT_and_afterT$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
 
-# 3. Преобразуем уровни фактора "Timeline"
+# 3. Converting the levels of the "Timeline" factor
 meta_NR_beforeT_and_afterT$Timeline <- factor(meta_NR_beforeT_and_afterT$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
-# 4. Преобразуем уровни фактора "Timeline"
+# 4. Converting the levels of the "Timeline" factor
 meta_RNR_beforeT$Timeline <- factor(meta_RNR_beforeT$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
 
-# 5. Преобразуем уровни фактора "Timeline"
+# 5. Converting the levels of the "Timeline" factor
 meta_RNR_afterT$Timeline <- factor(meta_RNR_afterT$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
 
-# Для 4 и 5 группы вообще необязательно было переводить таймлайн в фактор before-after, потому что в них нам интересно сравнить респондеров и нереспондеров.
-# Преобразуем в фактор Response в 4 и 5 группе
+# For groups 4 and 5, it was not necessary to convert the timeline to the before-after factor at all, because in them it is interesting for us to compare respondents and non-respondents.
+# Convert to the Response factor in groups 4 and 5
 
 meta_RNR_beforeT$Response <- factor(meta_RNR_beforeT$Response, levels = c("No", "Yes"))
 meta_RNR_afterT$Response <- factor(meta_RNR_afterT$Response, levels = c("No", "Yes"))
 
 
 ```
-Сохраним отдельно данные об экспрессии в соответствии с метадатой для каждой из групп:
+We will store the expression data separately according to the metadata for each of the groups.:
 
-1. Первая группа сравнения: ВСЕ до и после лечения. all_beforeT_and_afterT
-2. Вторая группа сравнения: ВСЕ респондеры до и после лечения. R_beforeT_and_afterT
-3. Третья группа сравнения: ВСЕ нереспондеры до и после лечения. NR_beforeT_and_afterT
-4. Четвертая группа сравнения: нереспондеры ДО против респондеров ДО. RNR_beforeT
-5. Пятая группа сравнения: нереспондеры ПОСЛЕ против респондеров ПОСЛЕ. RNR_afterT
+1. The first comparison group: EVERYTHING before and after treatment. all_beforeT_and_afterT
+2. The second comparison group: ALL respondents before and after treatment. R_beforeT_and_afterT
+3. The third comparison group: ALL nonresponders before and after treatment. NR_beforeT_and_afterT
+4. The fourth comparison group: nonresponders BEFORE versus respondents BEFORE. RNR_beforeT
+5. The fifth comparison group: nonresponders AFTER versus respondents AFTER. RNR_afterT
 
 
 ```{r}
-# В mean_norm.expr хранится аннотированная информация об экспрессии генов каждого образца. Для сравнения групп будем сопоставлять ID из метаданных групп (meta_all_...) с ID из mean_norm.expr.
-
-# Преобразуем в data.frame (чтобы можно было установить rownames)
+# mean_norm.expr stores annotated information about the gene expression of each sample. To compare groups, we will compare the ID from the metadata of the groups (meta_all_...) with the ID from mean_norm.expr.
+# Convert it to data.frame (so that rownames can be set)
 mean_norm.expr <- as.data.frame(mean_norm.expr)
-# Сделаем гены rownames, а столбец удалим
+# Make genes as rownames, and delete the column
 rownames(mean_norm.expr) <- mean_norm.expr$Gene.Symbol 
 mean_norm.expr <- mean_norm.expr[, !colnames(mean_norm.expr) %in% "Gene.Symbol"]
 
@@ -460,12 +460,12 @@ expr_5 <- mean_norm.expr[, meta_RNR_afterT$Geo_accession]
 
 ```
 
-Как я писала выше, группы 1-3 нам интересны для того, чтобы найти разницу между группами пациентов до и после лечения, а группы 4-5 -- чтобы посмотреть 
-разницу между респондерами и нереспондерами. Конечно же это будет влиять и на построение матрицы эксперимента. Поэтому сперва построим матрицы для групп 1-3, чтобы поискать ДЭГи в различных группах до-после.
+As I wrote above, we are interested in groups 1-3 in order to find the difference between groups of patients before and after treatment, and groups 4-5 - to see
+the difference between responders and non-responders. Of course, this will also affect the construction of the experiment matrix. Therefore, first we will construct matrices for groups 1-3 in order to search for TAGs in various before-after groups.
 
-### Дизайн матрица 1-3
+### Design matrix 1-3
 ```{r}
-# Группы 1-3. До-после
+# Groups 1-3. Before and after
 
 design_1 <- model.matrix(~0 + meta_all_beforeT_and_afterT$Timeline)
 colnames(design_1) <- levels(meta_all_beforeT_and_afterT$Timeline)
@@ -476,15 +476,14 @@ colnames(design_2) <- levels(meta_R_beforeT_and_afterT$Timeline)
 design_3 <- model.matrix(~0 + meta_NR_beforeT_and_afterT$Timeline)
 colnames(design_3) <- levels(meta_NR_beforeT_and_afterT$Timeline)
 
-# Насколько я понимаю, ~0 позволяет нам создавать модели без интерсепта, и каждая группа становится отдельной переменной. 
+# As far as I understand, ~0 allows us to create models without an intersept, and each group becomes a separate variable. 
 ```
 
-### Дизайн матрица 4-5
-Затем построим матрицы для групп 4-5 чтобы поискать ДЭГи в группах респондеры-нереспондеры.
+### Design matrix 4-5
+Then we will build matrices for groups 4-5 to search for TAGs in the responder-nonresponder groups.
 
 ```{r}
-# Группы 4-5. Респондеры-нереспондеры
-
+# Groups 4-5. Non-responders
 design_4 <- model.matrix(~0 + meta_RNR_beforeT$Response)
 colnames(design_4) <- levels(meta_RNR_beforeT$Response)
 
@@ -492,36 +491,35 @@ design_5 <- model.matrix(~0 + meta_RNR_afterT$Response)
 colnames(design_5) <- levels(meta_RNR_afterT$Response)
 
 ```
+makeContrasts. As far as I understand, we have defined groups in the design matrix, and makeContrast allows us to compare these groups.:
 
-Теперь создаем "контрастные матрицы" -- makeContrasts. Насколько я понимаю, в дизайн-матрице мы определили группы, а makeContrast позволяет эти группы сравнить:
-
-### Контрастная матрица 1-3
+### Contrast matrix 1-3
 ```{r}
-# Группы 1-3
+# Groups 1-3
 
-# Группа 1: Все образцы до и после лечения
+ Group 1: All samples before and after treatment
 contrast_1 <- makeContrasts(before - after, levels = design_1)
 
-# Группа 2: Только респондеры до и после
+# Группа 2: Only responders before and after
 contrast_2 <- makeContrasts(before - after, levels = design_2)
 
-# Группа 3: Только нереспондеры до и после
+# Группа 3: Only non-responders before and after
 contrast_3 <- makeContrasts(before - after, levels = design_3)
 
 ```
-### Контрастная матрица 4-5
+### Contrast matrix 4-5
 ```{r}
-# Группы 4-5
+# groups 4-5
 
-# Группа 4: Нереспондеры vs Респондеры ДО лечения
+# Group 4: non-responders vs responders BEFORE treatment
 contrast_4 <- makeContrasts(No - Yes, levels = design_4)
 
-# Группа 5: Нереспондеры vs Респондеры ПОСЛЕ лечения
+# Group 5: non-responders vs responders AFTER treatment
 contrast_5 <- makeContrasts(No - Yes, levels = design_5)
 
 ```
 
-Строим модели для каждой из групп сравнения:
+Build a model for each comparison group:
 ```{r}
 fit_1 <- lmFit(expr_1, design_1)
 fit_2 <- lmFit(expr_2, design_2)
@@ -530,7 +528,7 @@ fit_3 <- lmFit(expr_3, design_3)
 fit_4 <- lmFit(expr_4, design_4)
 fit_5 <- lmFit(expr_5, design_5)
 ```
-Эти линейные модели были построены на основе дизайн-матрицы, но без сравнения непосредственно групп, поэтому используем contrasts.fit(), чтобы "дополнить" получившиеся модели информацией о сравнении групп (контрастные матрицы):
+These linear models were built on the basis of a design matrix, but without comparing groups directly, so we use contrasts.fit() to "supplement" the resulting models with information about comparing groups (contrasting matrices):
 
 ```{r}
 fit2_1 <- contrasts.fit(fit_1, contrast_1)
@@ -541,7 +539,7 @@ fit2_4 <- contrasts.fit(fit_4, contrast_4)
 fit2_5 <- contrasts.fit(fit_5, contrast_5)
 ```
 
-Корректируем статистику и получаем значения p-value и другие с помощью eBayes
+We adjust the statistics and get the p-value values and others using eBayes
 
 ```{r}
 fit2_1 <- eBayes(fit2_1)
@@ -552,8 +550,8 @@ fit2_4 <- eBayes(fit2_4)
 fit2_5 <- eBayes(fit2_5)
 ```
 
-### Результаты для всех генов
-У нас довольно много данных, поэтому будем использовать поправку Бенджамина-Хохберга для выявления ДЭГов. Помимо этого отдельно сохраним файлы с результатами.
+### Results for all genes
+We have quite a lot of data, so we will use the Benjamin-Hochberg correction to identify DEGs. In addition, we will save the files with the results separately.
 ```{r}
 
 dir.create("../../../tables/CD/train/DEGs_All_Results", recursive = TRUE, showWarnings = FALSE) 
@@ -577,11 +575,11 @@ write.table(DEG_results_5, "../../../tables/CD/train/DEGs_All_Results/DEG_result
 
 ```
 
-### ДЭГи
-Отфильтруем значимые гены и сохраним результаты:
+### DEGs
+Let's filter out the significant genes and save the results:
 
 ```{r}
-# Фильтрация значимых DEG (p.adj < 0.05, |logFC| > 1) и сохранение в .tsv
+# Filtering significant DEGs (p.adj < 0.05, |logFC| > 1) and saving as .tsv
 deg_sign_1 <- subset(DEG_results_1, adj.P.Val < 0.05 & abs(logFC) > 1)
 write.table(deg_sign_1, "../../../tables/CD/train/DEGs_All_Results/deg_sign_1.tsv", sep = "\t", quote = FALSE, row.names = TRUE, col.names = NA)
 
@@ -601,8 +599,8 @@ write.table(deg_sign_5, "../../../tables/CD/train/DEGs_All_Results/deg_sign_5.ts
 ```
 
 
-### Статистики
-Статистика по только adj.P.Val. Посчитаем, сколько ДЭГов имеют adj.P.Val < 0.05 
+### Statistics
+Statistics on adj.P.Val only. Let's calculate how many DEGs adj.P.Val < 0.05 have
 
 ```{r}
 deg_stats_padj <- data.frame(
@@ -626,7 +624,7 @@ print(deg_stats_padj)
 
 
 ```
-Интересно, что в третьей группе ДЭГов с adj.P.Val < 0.05 -- 0
+Interestingly, in the third group of DEGs with adj.P.Val < 0.05 -- 0
 
 ```{r}
 deg_stats_padj_lfc <- data.frame(
@@ -652,7 +650,7 @@ print(deg_stats_padj_lfc)
 
 #### Barplot
 ```{r}
-# Подготовка данных для Bar Plot
+# Preapare data for Bar Plot
 deg_stats_bar_all <- data.frame(
   Group = rep(c("Before_vs_After", "R_Before_vs_After", "NR_Before_vs_After", "NR_vs_R_Before", "NR_vs_R_After"), each = 2),
   Regulation = rep(c("Upregulated", "Downregulated"), times = 5),
@@ -670,7 +668,7 @@ deg_stats_bar_all <- data.frame(
   )
 )
 deg_stats_bar_all$Group <- factor(deg_stats_bar_all$Group, levels = c("Before_vs_After", "R_Before_vs_After", "NR_Before_vs_After", "NR_vs_R_Before", "NR_vs_R_After"))
-# Построение Bar Plot
+# Build Bar Plot
 barplot_degs_all <- ggplot(deg_stats_bar_all, aes(x = Group, y = Count, fill = Regulation)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
   geom_text(aes(label = Count), vjust = -0.5, position = position_dodge(width = 0.8), size = 4) +
@@ -698,32 +696,32 @@ ggsave(filename = "../../../images/CD/train/DEGs/DEGs_All_Results/barplot_degs_a
 ```
 
 
-### Визуализации
+### Visualizations
 
-#### Визуализации 1-3
+#### Visualizations 1-3
 ```{r}
-# Визуализация первой группы
+# Visualization of the first group
 
-# Перезапишем таблицу с ДЭГами
+# Let's rewrite the table with DEGs
 data_plot_deg_1 <- DEG_results_1
 data_plot_deg_1$gene <- row.names(data_plot_deg_1)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_deg_1$diffexpressed <- "Not significant"
 data_plot_deg_1$diffexpressed[data_plot_deg_1$logFC > 1 & data_plot_deg_1$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_deg_1$diffexpressed[data_plot_deg_1$logFC < -1 & data_plot_deg_1$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_deg_1[data_plot_deg_1$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_deg_1[data_plot_deg_1$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_deg_1$delabel <- ifelse(data_plot_deg_1$gene %in% c(top_up, top_down), data_plot_deg_1$gene, "")
 
-#  Строим Volcano Plot
+#  Build Volcano Plot
 plot_deg_1 <- ggplot(data = data_plot_deg_1, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка p-value
@@ -750,27 +748,27 @@ print(plot_deg_1)
 ```
 
 ```{r}
-# Визуализация 2
-# Перезапишем таблицу с ДЭГами
+# Visualization 2
+# Let's rewrite the table with DEGs
 data_plot_deg_2 <- DEG_results_2
 data_plot_deg_2$gene <- row.names(data_plot_deg_2)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_deg_2$diffexpressed <- "Not significant"
 data_plot_deg_2$diffexpressed[data_plot_deg_2$logFC > 1 & data_plot_deg_2$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_deg_2$diffexpressed[data_plot_deg_2$logFC < -1 & data_plot_deg_2$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_deg_2[data_plot_deg_2$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_deg_2[data_plot_deg_2$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_deg_2$delabel <- ifelse(data_plot_deg_2$gene %in% c(top_up, top_down), data_plot_deg_2$gene, "")
 
-#  Строим Volcano Plot
+#  Build a Volcano Plot
 plot_deg_2 <- ggplot(data = data_plot_deg_2, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка p-value
@@ -801,17 +799,17 @@ print(plot_deg_2)
 
 
 ```{r}
-# Визуализация 3
-# Перезаписываем таблицу с ДЭГами
+# Visualization 3
+# Let's rewrite the table with DEGs
 data_plot_deg_3 <- DEG_results_3
 data_plot_deg_3$gene <- row.names(data_plot_deg_3)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_deg_3$diffexpressed <- "Not significant"  # ВСЕ гены по умолчанию незначимые
 data_plot_deg_3$diffexpressed[data_plot_deg_3$logFC > 1 & data_plot_deg_3$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_deg_3$diffexpressed[data_plot_deg_3$logFC < -1 & data_plot_deg_3$adj.P.Val < 0.05] <- "Downregulated"
 
-# Проверим, есть ли значимые гены
+# Let's check if there are any significant genes
 if (sum(data_plot_deg_3$diffexpressed == "Upregulated") > 0) {
   top_up <- data_plot_deg_3[data_plot_deg_3$diffexpressed == "Upregulated", ]
   top_up_genes <- top_up[order(-top_up$logFC), ][1:min(10, nrow(top_up)), "gene"]
@@ -826,7 +824,7 @@ if (sum(data_plot_deg_3$diffexpressed == "Downregulated") > 0) {
   top_down_genes <- character(0)  # Пустой вектор, если значимых генов нет
 }
 
-# Подписываем только топ-10 Up и топ-10 Down гены (если они есть)
+# We only sign the top 10 Up and Top 10 Down genes (if any)
 data_plot_deg_3$delabel <- ifelse(data_plot_deg_3$gene %in% c(top_up_genes, top_down_genes), data_plot_deg_3$gene, "")
 
 #  Строим Volcano Plot
@@ -859,26 +857,25 @@ print(plot_deg_3)
 
 
 
-#### Визуализации 4-5
+#### Visualization 4-5
 ```{r}
-# Визуализация 4
-# Перезапишем таблицу с ДЭГами
+# Visualization 4-5
+# Let's rewrite the table with DEGs
 data_plot_deg_4 <- DEG_results_4
 data_plot_deg_4$gene <- rownames(data_plot_deg_4)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_deg_4$diffexpressed <- "Not significant"
 data_plot_deg_4$diffexpressed[data_plot_deg_4$logFC > 1 & data_plot_deg_4$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_deg_4$diffexpressed[data_plot_deg_4$logFC < -1 & data_plot_deg_4$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# We only sign the top 10 Up and Top 10 Down genes 
 top_up <- data_plot_deg_4[data_plot_deg_4$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_deg_4[data_plot_deg_4$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
 data_plot_deg_4$delabel <- ifelse(data_plot_deg_4$gene %in% c(top_up, top_down), data_plot_deg_4$gene, "")
 
 #  Строим Volcano Plot
@@ -911,27 +908,27 @@ print(plot_deg_4)
 
 
 ```{r}
-# Визуализация 5
-# Перезапишем таблицу с ДЭГами
+# Visualization 5
+# Let's rewrite the table with DEGs
 data_plot_deg_5 <- DEG_results_5
 data_plot_deg_5$gene <- rownames(data_plot_deg_5)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_deg_5$diffexpressed <- "Not significant"
 data_plot_deg_5$diffexpressed[data_plot_deg_5$logFC > 1 & data_plot_deg_5$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_deg_5$diffexpressed[data_plot_deg_5$logFC < -1 & data_plot_deg_5$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_deg_5[data_plot_deg_5$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_deg_5[data_plot_deg_5$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_deg_5$delabel <- ifelse(data_plot_deg_5$gene %in% c(top_up, top_down), data_plot_deg_5$gene, "")
 
-#  Строим Volcano Plot
+#  Build a Volcano Plot
 plot_deg_5 <- ggplot(data = data_plot_deg_5, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка p-value
@@ -957,14 +954,14 @@ plot_deg_5 <- ggplot(data = data_plot_deg_5, aes(x = logFC, y = -log10(adj.P.Val
 print(plot_deg_5)
 
 ```
-#### Сохранение Volcano plots
+#### Saving the Volcano plots
 ```{r}
 dir.create("../../../images/CD/train/DEGs/DEGs_All_Results", recursive = TRUE, showWarnings = FALSE) 
 
 # Список графиков DEG
 deg_list <- list(plot_deg_1, plot_deg_2, plot_deg_3, plot_deg_4, plot_deg_5)
 
-# Названия файлов с префиксами
+# Filnames with prefix
 file_names <- c(
   "1_Volcano_All_Before_After.png",  # Все пациенты ДО и ПОСЛЕ
   "2_Volcano_R_Before_After.png",    # Респондеры ДО и ПОСЛЕ
@@ -983,34 +980,34 @@ for (i in seq_along(deg_list)) {
 ```
 
 
-## Болезнь Крона (CD):
-Внутри этой группы так же есть разделение на Colon и Ileum. Так как данных не очень много, то будем анализировать данные по Colon и Ileum вместе. 
+## Crohn's disease (CD):
+Within this group there is also a division into Colon and Ileum. Since there is not a lot of data, we will analyze the data on Colon and Izoom together. 
 
-Отфильтруем из метаданных и данных с экспрессией только с болезнью Крона:
+Let's filter out the metadata and data with expression only with Crohn's disease:
 
 ```{r}
 metadata_CD <- metadata[metadata$Disease == "CD", ]
 mean_norm.expr_CD <- mean_norm.expr[, metadata_CD$Geo_accession]
 
-# Преобразуем уровни фактора "Timeline"
+# Convert the levels of the "Timeline" factor
 metadata_CD$Timeline <- factor(metadata_CD$Timeline, 
                                           levels = c("Before first infliximab treatment", 
                                                      "After first infliximab treatment"),
                                           labels = c("before", "after"))
 
-# Преобразуем уровни фактора "Response"
+# Transform the levels of the "Response" factor
 metadata_CD$Response <- factor(metadata_CD$Response, 
                                           levels = c("Yes", 
                                                      "No"))
 ```
 
-Сохраним отдельно данные об экспрессии в соответствии с метадатой для каждой из групп:
+We will store the expression data separately according to the metadata for each of the groups.:
 
-1. Первая группа сравнения: ВСЕ до и после лечения. CD_all_beforeT_and_afterT
-2. Вторая группа сравнения: ВСЕ респондеры до и после лечения. CD_R_beforeT_and_afterT
-3. Третья группа сравнения: ВСЕ нереспондеры до и после лечения. CD_NR_beforeT_and_afterT
-4. Четвертая группа сравнения: нереспондеры ДО против респондеров ДО. CD_RNR_beforeT
-5. Пятая группа сравнения: нереспондеры ПОСЛЕ против респондеров ПОСЛЕ. CD_RNR_afterT
+1. The first comparison group: EVERYTHING before and after treatment. CD_all_beforeT_and_afterT
+2. The second comparison group: ALL respondents before and after treatment. CD_R_beforeT_and_afterT
+3. The third comparison group: ALL nonresponders before and after treatment. CD_NR_beforeT_and_afterT
+4. The fourth comparison group: nonresponders BEFORE versus respondents BEFORE. CD_RNR_beforeT
+5. The fifth comparison group: nonresponders AFTER versus respondents AFTER. CD_RNR_afterT
 
 ```{r}
 m_CD_all_beforeT_and_afterT <- metadata_CD
@@ -1028,7 +1025,7 @@ m_CD_RNR_afterT <- metadata_CD %>%
   dplyr::filter(Timeline == "after")
 
 ```
-Объединим данные об экспрессии и метаданные
+Combine the expression data and metadata
 ```{r}
 CD_1 <- mean_norm.expr[, m_CD_all_beforeT_and_afterT$Geo_accession]
 CD_2 <- mean_norm.expr[, m_CD_R_beforeT_and_afterT$Geo_accession]
@@ -1037,9 +1034,9 @@ CD_4 <- mean_norm.expr[, m_CD_RNR_beforeT$Geo_accession]
 CD_5 <- mean_norm.expr[, m_CD_RNR_afterT$Geo_accession]
 ```
 
-### Дизайн матрица 1-3:
+### Design matrix 1-3:
 ```{r}
-# Группы 1-3. До-после
+#Groups 1-3. Before and after
 
 m_CD_all_beforeT_and_afterT$Timeline <- factor(m_CD_all_beforeT_and_afterT$Timeline, levels = c("before", "after"))
 CD_design_1 <- model.matrix(~0 + m_CD_all_beforeT_and_afterT$Timeline)
@@ -1053,14 +1050,14 @@ m_CD_NR_beforeT_and_afterT$Timeline <- factor(m_CD_NR_beforeT_and_afterT$Timelin
 CD_design_3 <- model.matrix(~0 + m_CD_NR_beforeT_and_afterT$Timeline)
 colnames(CD_design_3) <- levels(m_CD_NR_beforeT_and_afterT$Timeline)
 
-# Насколько я понимаю, ~0 позволяет нам создавать модели без интерсепта, и каждая группа становится отдельной переменной. 
+# As far as I understand, ~0 allows us to create models without an intersept, and each group becomes a separate variable. 
 ```
 
-### Дизайн матрица 4-5:
-Затем построим матрицы для групп 4-5 чтобы поискать ДЭГи в группах респондеры-нереспондеры.
+### Design matrix 4-5:
+Then we will build matrices for groups 4-5 to search for DEGs in the responder-nonresponder groups.
 
 ```{r}
-# Группы 4-5. Нереспондеры-респондеры
+# Groups 4-5. Non-responders-responders
 m_CD_RNR_beforeT$Response <- factor(m_CD_RNR_beforeT$Response, levels = c("No", "Yes"))
 
 CD_design_4 <- model.matrix(~0 + m_CD_RNR_beforeT$Response)
@@ -1074,13 +1071,13 @@ colnames(CD_design_5) <- levels(m_CD_RNR_afterT$Response)
 
 ```
 
-### Контрастная матрица 1-3:
-Теперь создаем "контрастные матрицы" -- makeContrasts. Насколько я понимаю, в дизайн-матрице мы определили группы, а makeContrast позволяет эти группы сравнить:
+### Contrast matrix 1-3:
+Now we create "contrast matrices" -- makeContrasts. As far as I understand, we have defined groups in the design matrix, and makeContrast allows us to compare these groups.:
 
 ```{r}
-# Группы 1-3
+# Groups 1-3
 
-# Группа 1: Все образцы до и после лечения
+ Group 1: All samples before and after treatment
 CD_contrast_1 <- makeContrasts(before - after, levels = CD_design_1)
 
 # Группа 2: Только респондеры до и после
@@ -1091,20 +1088,20 @@ CD_contrast_3 <- makeContrasts(before - after, levels = CD_design_3)
 
 ```
 
-### Контрастная матрица 4-5:
+### Contrast matrix 4-5:
 
 ```{r}
-# Группы 4-5
+# Groups 4-5
 
-# Группа 4: Неспондеры vs респондеры ДО лечения
+# Group 4: Non-transponders vs respondents BEFORE treatment
 CD_contrast_4 <- makeContrasts(No - Yes, levels = CD_design_4)
 
-# Группа 5: Нереспондеры vs респондеры ПОСЛЕ лечения
+# Group 5: Non-responders vs POST-treatment responders
 CD_contrast_5 <- makeContrasts(No - Yes, levels = CD_design_5)
 
 ```
 
-Строим модели для каждой из групп сравнения:
+We build models for each of the comparison groups:
 ```{r}
 CD_fit_1 <- lmFit(CD_1, CD_design_1)
 CD_fit_2 <- lmFit(CD_2, CD_design_2)
@@ -1113,7 +1110,7 @@ CD_fit_3 <- lmFit(CD_3, CD_design_3)
 CD_fit_4 <- lmFit(CD_4, CD_design_4)
 CD_fit_5 <- lmFit(CD_5, CD_design_5)
 ```
-Эти линейные модели были построены на основе дизайн-матрицы, но без сравнения непосредственно групп, поэтому используем contrasts.fit(), чтобы "дополнить" получившиеся модели информацией о сравнении групп (контрастные матрицы):
+These linear models were built on the basis of a design matrix, but without comparing groups directly, so we use contrasts.fit() to "supplement" the resulting models with information about comparing groups (contrasting matrices):
 
 ```{r}
 CD_fit2_1 <- contrasts.fit(CD_fit_1, CD_contrast_1)
@@ -1124,7 +1121,7 @@ CD_fit2_4 <- contrasts.fit(CD_fit_4, CD_contrast_4)
 CD_fit2_5 <- contrasts.fit(CD_fit_5, CD_contrast_5)
 ```
 
-Корректируем статистику и получаем значения p-value и другие с помощью eBayes
+We adjust the statistics and get the p-value values and others using eBayes
 
 ```{r}
 CD_fit2_1 <- eBayes(CD_fit2_1)
@@ -1135,8 +1132,8 @@ CD_fit2_4 <- eBayes(CD_fit2_4)
 CD_fit2_5 <- eBayes(CD_fit2_5)
 ```
 
-### Результаты для всех генов
-У нас довольно много данных, поэтому будем использовать поправку Бенджамина-Хохберга для выявления ДЭГов. Помимо этого отдельно сохраним файлы с результатами.
+### Results for all genes
+We have quite a lot of data, so we will use the Benjamin-Hochberg correction to identify DEGs. In addition, we will save the files with the results separately.
 ```{r}
 dir.create("../../../tables/CD/train/DEGs_CD_Results", recursive = TRUE, showWarnings = FALSE) 
 
@@ -1158,9 +1155,9 @@ write.table(CD_DEG_results_5, "../../../tables/CD/train/DEGs_CD_Results/CD_DEG_r
 
 
 ```
-### ДЭГи
+### DEGs
 
-Отфильтруем значимые гены и сохраним результаты:
+Let's filter out the significant genes and save the results.:
 
 ```{r}
 CD_deg_sign_1 <- subset(CD_DEG_results_1, adj.P.Val < 0.05 & abs(logFC) > 1)
@@ -1183,7 +1180,7 @@ write.table(CD_deg_sign_5, "../../../tables/CD/train/DEGs_CD_Results/CD_deg_sign
 ```
 
 ```{r}
-# Сохраним ТОЛЬКО ЗНАЧИМЫЕ ДЭГи (только adj.P.Val < 0.05)
+# We will save ONLY SIGNIFICANT DEGs.(только adj.P.Val < 0.05)
 CD_deg_sign_1_pval <- subset(CD_DEG_results_1, adj.P.Val < 0.05)
 write.table(CD_deg_sign_1, "../../../tables/CD/train/DEGs_CD_Results/CD_deg_sign_1_pval.txt", sep = "\t", quote = FALSE, row.names = TRUE)
 
@@ -1203,9 +1200,9 @@ write.table(CD_deg_sign_5, "../../../tables/CD/train/DEGs_CD_Results/CD_deg_sign
 ```
 
 
-### Статистики
+### Statistics
 
-Статистика по adj.P.Val. Посчитаем, сколько ДЭГов имеют adj.P.Val < 0.05 
+Statistics on adj.P.Val. Let's calculate how many DEGs adj.P.Val < 0.05 have
 
 ```{r}
 deg_stats_padj_lfc_CD <- data.frame(
@@ -1232,7 +1229,7 @@ print(deg_stats_padj_lfc_CD)
 #### Barplot
 ```{r}
 
-# Подготовка данных для Bar Plot
+# Preparing data for the Bar Plot
 deg_stats_bar <- data.frame(
   Group = rep(c("Before_vs_After", "R_Before_vs_After", "NR_Before_vs_After", "NR_vs_R_Before", "NR_vs_R_After"), each = 2),
   Regulation = rep(c("Upregulated", "Downregulated"), times = 5),
@@ -1279,28 +1276,28 @@ ggsave(filename = "../../../images/CD/train/DEGs/DEGs_CD_Results/barplot_degs_CD
 ```
 
 
-### Визуализации 1-3
-Визуализация:
-```{r}
-# Визуализация первой группы
+### Visualizations 1-3
+Visualization:
+``{r}
+# Visualization of the first group
 
-# Перезапишем таблицу с ДЭГами
+# Let's rewrite the table with DEGs
 data_plot_CD_DEG_results_1 <- CD_DEG_results_1
 data_plot_CD_DEG_results_1$gene <- row.names(data_plot_CD_DEG_results_1)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_CD_DEG_results_1$diffexpressed <- "Not significant"
 data_plot_CD_DEG_results_1$diffexpressed[data_plot_CD_DEG_results_1$logFC > 1 & data_plot_CD_DEG_results_1$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_CD_DEG_results_1$diffexpressed[data_plot_CD_DEG_results_1$logFC < -1 & data_plot_CD_DEG_results_1$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_CD_DEG_results_1[data_plot_CD_DEG_results_1$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_CD_DEG_results_1[data_plot_CD_DEG_results_1$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_CD_DEG_results_1$delabel <- ifelse(data_plot_CD_DEG_results_1$gene %in% c(top_up, top_down), data_plot_CD_DEG_results_1$gene, "")
 
 plot_CD_DEG_results_1 <- ggplot(data = data_plot_CD_DEG_results_1, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
@@ -1331,25 +1328,25 @@ print(plot_CD_DEG_results_1)
 
 
 ```{r}
-# Визуализация второй группы
+# Visualization of the second group
 
-# Перезапишем таблицу с ДЭГами
+# Let's rewrite the table with DEGs
 data_plot_CD_DEG_results_2 <- CD_DEG_results_2
 data_plot_CD_DEG_results_2$gene <- row.names(data_plot_CD_DEG_results_2)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_CD_DEG_results_2$diffexpressed <- "Not significant"
 data_plot_CD_DEG_results_2$diffexpressed[data_plot_CD_DEG_results_2$logFC > 1 & data_plot_CD_DEG_results_2$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_CD_DEG_results_2$diffexpressed[data_plot_CD_DEG_results_2$logFC < -1 & data_plot_CD_DEG_results_2$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_CD_DEG_results_2[data_plot_CD_DEG_results_2$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_CD_DEG_results_2[data_plot_CD_DEG_results_2$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_CD_DEG_results_2$delabel <- ifelse(data_plot_CD_DEG_results_2$gene %in% c(top_up, top_down), data_plot_CD_DEG_results_2$gene, "")
 
 plot_CD_DEG_results_2 <- ggplot(data = data_plot_CD_DEG_results_2, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
@@ -1380,17 +1377,17 @@ print(plot_CD_DEG_results_2)
 
 
 ```{r}
-# Визуализация 3
-# Перезаписываем таблицу с ДЭГами
+# Visualization 3
+# Overwriting the table with DEGs
 data_plot_CD_DEG_results_3 <- CD_DEG_results_3
 data_plot_CD_DEG_results_3$gene <- row.names(data_plot_CD_DEG_results_3)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_CD_DEG_results_3$diffexpressed <- "Not significant"  # ВСЕ гены по умолчанию незначимые
 data_plot_CD_DEG_results_3$diffexpressed[data_plot_CD_DEG_results_3$logFC > 1 & data_plot_CD_DEG_results_3$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_CD_DEG_results_3$diffexpressed[data_plot_CD_DEG_results_3$logFC < -1 & data_plot_CD_DEG_results_3$adj.P.Val < 0.05] <- "Downregulated"
 
-# Проверим, есть ли значимые гены
+# Let's check if there are any significant genes
 if (sum(data_plot_CD_DEG_results_3$diffexpressed == "Upregulated") > 0) {
   top_up <- data_plot_CD_DEG_results_3[data_plot_CD_DEG_results_3$diffexpressed == "Upregulated", ]
   top_up_genes <- top_up[order(-top_up$logFC), ][1:min(10, nrow(top_up)), "gene"]
@@ -1405,10 +1402,10 @@ if (sum(data_plot_CD_DEG_results_3$diffexpressed == "Downregulated") > 0) {
   top_down_genes <- character(0)  # Пустой вектор, если значимых генов нет
 }
 
-# Подписываем только топ-10 Up и топ-10 Down гены (если они есть)
+# We only sign the top 10 Up and Top 10 Down genes (if any)
 data_plot_CD_DEG_results_3$delabel <- ifelse(data_plot_CD_DEG_results_3$gene %in% c(top_up_genes, top_down_genes), data_plot_CD_DEG_results_3$gene, "")
 
-#  Строим Volcano Plot
+#  Build Volcano Plot
 plot_CD_DEG_results_3 <- ggplot(data = data_plot_CD_DEG_results_3, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка adj.P.Val
@@ -1435,31 +1432,31 @@ print(plot_CD_DEG_results_3)
 
 ```
 
-### Визуализации 4-5
+### Visualizations 4-5
 
 ```{r}
-# Визуализация четвертой группы
+# Visualization of the fourth group
 
-# Перезапишем таблицу с ДЭГами
+# Let's rewrite the table with DEGs
 data_plot_CD_DEG_results_4 <- CD_DEG_results_4
 data_plot_CD_DEG_results_4$gene <- row.names(data_plot_CD_DEG_results_4)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_CD_DEG_results_4$diffexpressed <- "Not significant"
 data_plot_CD_DEG_results_4$diffexpressed[data_plot_CD_DEG_results_4$logFC > 1 & data_plot_CD_DEG_results_4$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_CD_DEG_results_4$diffexpressed[data_plot_CD_DEG_results_4$logFC < -1 & data_plot_CD_DEG_results_4$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_CD_DEG_results_4[data_plot_CD_DEG_results_4$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_CD_DEG_results_4[data_plot_CD_DEG_results_4$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_CD_DEG_results_4$delabel <- ifelse(data_plot_CD_DEG_results_4$gene %in% c(top_up, top_down), data_plot_CD_DEG_results_4$gene, "")
 
-#  Строим Volcano Plot
+#  Build a Volcano Plot
 plot_CD_DEG_results_4 <- ggplot(data = data_plot_CD_DEG_results_4, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка p-value
@@ -1488,28 +1485,28 @@ print(plot_CD_DEG_results_4)
 
 
 ```{r}
-# Визуализация пятой группы
+# Visualization of the fifth group
 
-# Перезапишем таблицу с ДЭГами
+# Let's rewrite the table with DEGs
 data_plot_CD_DEG_results_5 <- CD_DEG_results_5
 data_plot_CD_DEG_results_5$gene <- row.names(data_plot_CD_DEG_results_5)
 
-# Определяем, какие гены дифференциально экспрессированы
+# We determine which genes are differentially expressed
 data_plot_CD_DEG_results_5$diffexpressed <- "Not significant"
 data_plot_CD_DEG_results_5$diffexpressed[data_plot_CD_DEG_results_5$logFC > 1 & data_plot_CD_DEG_results_5$adj.P.Val < 0.05] <- "Upregulated"
 data_plot_CD_DEG_results_5$diffexpressed[data_plot_CD_DEG_results_5$logFC < -1 & data_plot_CD_DEG_results_5$adj.P.Val < 0.05] <- "Downregulated"
 
-# Выбираем ТОЛЬКО ТОП-10 Up и Топ-10 Down генов
+# Select ONLY the TOP 10 Up and Top 10 Down genes
 top_up <- data_plot_CD_DEG_results_5[data_plot_CD_DEG_results_5$diffexpressed == "Upregulated", ]
 top_up <- top_up[order(-top_up$logFC), ][1:10, "gene"]
 
 top_down <- data_plot_CD_DEG_results_5[data_plot_CD_DEG_results_5$diffexpressed == "Downregulated", ]
 top_down <- top_down[order(top_down$logFC), ][1:10, "gene"]
 
-# Подписываем только эти гены
+# We only sign these genes
 data_plot_CD_DEG_results_5$delabel <- ifelse(data_plot_CD_DEG_results_5$gene %in% c(top_up, top_down), data_plot_CD_DEG_results_5$gene, "")
 
-#  Строим Volcano Plot
+#  Build Volcano Plot
 plot_CD_DEG_results_5 <- ggplot(data = data_plot_CD_DEG_results_5, aes(x = logFC, y = -log10(adj.P.Val), col = diffexpressed, label = delabel)) +
   geom_vline(xintercept = c(-1, 1), col = "black", linetype = 'dashed') +  # Отсечки logFC
   geom_hline(yintercept = -log10(0.05), col = "black", linetype = 'dashed') +  # Отсечка p-value
@@ -1536,16 +1533,16 @@ print(plot_CD_DEG_results_5)
 
 
 ```
-#### Сохранение Volcano plots
+#### Saving the Volcano plots
 
 ```{r}
-# Создаём папку, если не существует
+# Create a folder if it does not exist
 dir.create("../../../images/CD/train/DEGs/DEGs_CD_Results", recursive = TRUE, showWarnings = FALSE)
 
 # Список графиков DEG
 deg_list <- list(plot_CD_DEG_results_1, plot_CD_DEG_results_2, plot_CD_DEG_results_3, plot_CD_DEG_results_4, plot_CD_DEG_results_5)
 
-# Названия PNG-файлов
+# PNG file names
 file_names <- c(
   "1_CD_Volcano_All_Before_vs_After.png",
   "2_CD_Volcano_R_Before_vs_After.png",
@@ -1554,7 +1551,7 @@ file_names <- c(
   "5_CD_Volcano_NR_vs_R_After.png"
 )
 
-# Сохраняем графики в PNG
+# Saving graphs in PNG
 for (i in seq_along(deg_list)) {
   file_path <- paste0("../../../images/CD/train/DEGs/DEGs_CD_Results/", file_names[i])
   ggsave(filename = file_path, plot = deg_list[[i]], device = "png", width = 9, height = 6, dpi = 300)
@@ -1564,13 +1561,13 @@ for (i in seq_along(deg_list)) {
 
 # GSEA
 
-Сперва проведем GSEA групп по всем болезням, а потом по Крону.
+First, we will conduct GSEA groups for all diseases, and then for the Crown.
 
-## GSEA Все пациенты
-1. GSEA для всего датасета:
-Советуют переводить Gene Symbol в EntrezID, но в этом случае у меня высвечивается предупреждение о том, что порядка 25% генов не удаётся проанализировать. Поэтому буду использовать в качестве keyType - SYMBOL.
+## GSEA All patients
+1. GSEA all dataset:
+Its recomended to convert Gene Symbol into EntrezID, but here about 25% of genes can not be analized according to warning, we will use keyType - SYMBOL.
 
-Создаём ранжированные по -log10(P.Value) * sign(logFC) (можно и просто по logFC или по t-статистике) списки генов:
+Build ranging by -log10(P.Value) * sign(logFC) (logFC or t-statistic are also good options) gene lists:
 ```{r}
 # DEG_results_1
 gene_list_1 <- with(DEG_results_1, -log10(P.Value) * sign(logFC))
@@ -1601,9 +1598,9 @@ names(gene_list_5) <- rownames(DEG_results_5)
 gene_list_5 <- sort(gene_list_5, decreasing = TRUE)
 
 ```
-GSEA (фоновый список не нужен):
+GSEA (background list is not needed):
 ```{r}
-# GSEA для gene_list_1
+# GSEA gene_list_1
 gsea_results_1 <- gseGO(
   geneList      = gene_list_1,  
   OrgDb         = org.Hs.eg.db,
@@ -1617,7 +1614,7 @@ gsea_results_1 <- gseGO(
   pvalueCutoff  = 0.05
 )
 
-# GSEA для gene_list_2
+# GSEA gene_list_2
 gsea_results_2 <- gseGO(
   geneList      = gene_list_2,  
   OrgDb         = org.Hs.eg.db,
@@ -1631,7 +1628,7 @@ gsea_results_2 <- gseGO(
   pvalueCutoff  = 0.05
 )
 
-# GSEA для gene_list_3
+# GSEA gene_list_3
 gsea_results_3 <- gseGO(
   geneList      = gene_list_3,  
   OrgDb         = org.Hs.eg.db,
@@ -1645,7 +1642,7 @@ gsea_results_3 <- gseGO(
   pvalueCutoff  = 0.05
 )
 
-# GSEA для gene_list_4
+# GSEA gene_list_4
 gsea_results_4 <- gseGO(
   geneList      = gene_list_4,  
   OrgDb         = org.Hs.eg.db,
@@ -1659,7 +1656,7 @@ gsea_results_4 <- gseGO(
   pvalueCutoff  = 0.05
 )
 
-# GSEA для gene_list_5
+# GSEA gene_list_5
 gsea_results_5 <- gseGO(
   geneList      = gene_list_5,  
   OrgDb         = org.Hs.eg.db,
@@ -1675,40 +1672,40 @@ gsea_results_5 <- gseGO(
 
 
 ```
-### Визуализации
-Визуализация (разброс по p.adj какой-то маленький...)
+### Visualization
+Visualization (difference in p.adj is small)
 ```{r}
 # https://yulab-smu.top/biomedical-knowledge-mining-book/enrichplot.html
 
-# Dotplot для gsea_results_1
+# Dotplot gsea_results_1
 dotplot_1 <- dotplot(gsea_results_1, showCategory = 5, split = ".sign") +
    facet_grid(. ~ .sign) +
    theme(axis.text.x = element_text(angle = 45, hjust = 1),
          axis.text.y = element_text(size = 10)
 )
 
-# Dotplot для gsea_results_2
+# Dotplot gsea_results_2
 dotplot_2 <- dotplot(gsea_results_2, showCategory = 5, split = ".sign") +
    facet_grid(. ~ .sign) +
    theme(axis.text.x = element_text(angle = 45, hjust = 1),
          axis.text.y = element_text(size = 10)
    )
 
-# Dotplot для gsea_results_3
+# Dotplot gsea_results_3
 dotplot_3 <- dotplot(gsea_results_3, showCategory = 5, split = ".sign") +
    facet_grid(. ~ .sign) +
    theme(axis.text.x = element_text(angle = 45, hjust = 1),
          axis.text.y = element_text(size = 10)
    )
 
-# Dotplot для gsea_results_4
+# Dotplot gsea_results_4
 dotplot_4 <- dotplot(gsea_results_4, showCategory = 5, split = ".sign") +
    facet_grid(. ~ .sign) +
    theme(axis.text.x = element_text(angle = 45, hjust = 1),
          axis.text.y = element_text(size = 10)
    )
 
-# Dotplot для gsea_results_5
+# Dotplot gsea_results_5
 dotplot_5 <- dotplot(gsea_results_5, showCategory = 5, split = ".sign") +
    facet_grid(. ~ .sign) +
    theme(axis.text.x = element_text(angle = 45, hjust = 1),
@@ -1742,25 +1739,25 @@ ggsave(filename = "../../../images/CD/train/GSEA/GSEA_All_Results/dotplot_5.png"
 
 
 ```{r}
-# Cnetplot для gsea_results_1
+# Cnetplot gsea_results_1
 cnetplot_1 <- cnetplot(gsea_results_1, showCategory = 3)
 
-# Cnetplot для gsea_results_2
+# Cnetplot gsea_results_2
 cnetplot_2 <- cnetplot(gsea_results_2, showCategory = 3)
 
-# Cnetplot для gsea_results_3
+# Cnetplot gsea_results_3
 cnetplot_3 <- cnetplot(gsea_results_3, showCategory = 3)
 
-# Cnetplot для gsea_results_4
+# Cnetplot gsea_results_4
 cnetplot_4 <- cnetplot(gsea_results_4, showCategory = 3)
 
-# Cnetplot для gsea_results_5
+# Cnetplot gsea_results_5
 cnetplot_5 <- cnetplot(gsea_results_5, showCategory = 3)
 
 ```
 
 ```{r}
-# Сохранение cnetplot_1 - cnetplot_5 в формате PNG
+# Saving cnetplot_1 - cnetplot_5 in PNG
 ggsave(filename = "../../../images/CD/train/GSEA/GSEA_All_Results/cnetplot_1.jpg", plot = cnetplot_1, 
        width = 16, height = 10, dpi = 300)
 
@@ -1779,11 +1776,11 @@ ggsave(filename = "../../../images/CD/train/GSEA/GSEA_All_Results/cnetplot_5.jpg
 ```
 
 
-## ORA Все пациенты
+## ORA All patients
 ORA:
 
 ```{r}
-# Отбираем значимые DEGs с padj < 0.05 и |logFC| > 1
+# Take significant DEGs с padj < 0.05 и |logFC| > 1
 deg_list_1 <- rownames(DEG_results_1[DEG_results_1$adj.P.Val < 0.05 & abs(DEG_results_1$logFC) > 1, ])
 deg_list_2 <- rownames(DEG_results_2[DEG_results_2$adj.P.Val < 0.05 & abs(DEG_results_2$logFC) > 1, ])
 # deg_list_3 <- rownames(DEG_results_3[DEG_results_3$adj.P.Val < 0.05 & abs(DEG_results_3$logFC) > 1, ])
@@ -1792,14 +1789,14 @@ deg_list_5 <- rownames(DEG_results_5[DEG_results_5$adj.P.Val < 0.05 & abs(DEG_re
 
 ```
 
-Определяем список фоновых генов. Насколько я поняла для микрочиповых данных -- это просто список генов, которые есть на чипе. Их можно взять из любого DEG_results_
+Define background gene list. Gene lust on the array. Can be taken from DEG_results_
 ```{r}
 universe <- rownames(DEG_results_1)  # Все гены, присутствующие в анализе
 
 ```
 
 ```{r}
-# ORA для deg_list_1
+# ORAfor deg_list_1
 ora_results_1 <- enrichGO(
   gene          = deg_list_1,
   universe      = universe,
@@ -1810,7 +1807,7 @@ ora_results_1 <- enrichGO(
   pvalueCutoff  = 0.05
 )
 
-# ORA для deg_list_2
+# ORA for deg_list_2
 ora_results_2 <- enrichGO(
   gene          = deg_list_2,
   universe      = universe,
@@ -1821,7 +1818,7 @@ ora_results_2 <- enrichGO(
   pvalueCutoff  = 0.05
 )
 
-# ORA для deg_list_3
+# ORA for deg_list_3
 # ora_results_3 <- enrichGO(
 #   gene          = deg_list_3,
 #   universe      = universe,
@@ -1832,7 +1829,7 @@ ora_results_2 <- enrichGO(
 #   pvalueCutoff  = 0.05
 # )
 
-# ORA для deg_list_4
+# ORA for deg_list_4
 ora_results_4 <- enrichGO(
   gene          = deg_list_4,
   universe      = universe,
@@ -1843,7 +1840,7 @@ ora_results_4 <- enrichGO(
   pvalueCutoff  = 0.05
 )
 
-# ORA для deg_list_5
+# ORA for deg_list_5
 ora_results_5 <- enrichGO(
   gene          = deg_list_5,
   universe      = universe,
@@ -1855,7 +1852,7 @@ ora_results_5 <- enrichGO(
 )
 
 ```
-### Визуализации
+### Visualization
 ```{r}
 
 # Dotplot для ora_results_1
@@ -1876,7 +1873,7 @@ ora_dotplot_5 <- dotplot(ora_results_5, showCategory=10)
 
 ```{r}
 dir.create("../../../images/CD/train/ORA/ORA_All_Results", recursive = TRUE, showWarnings = FALSE)
-# Сохранение dotplot_1 - dotplot_5 в PNG
+# Saving dotplot_1 - dotplot_5 in PNG
 ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_dotplot_1.png", plot = ora_dotplot_1, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_dotplot_2.png", plot = ora_dotplot_2, width = 16, height = 10, dpi = 300)
 #ggsave(filename = "ora_dotplot_3.png", plot = ora_dotplot_3, width = 16, height = 10, dpi = 300)
@@ -1885,22 +1882,22 @@ ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_dotplot_5.pn
 
 
 
-# Cnetplot для ora_results_1
+# Cnetplot for ora_results_1
 ora_cnetplot_1 <- cnetplot(ora_results_1, showCategory = 3)
 
-# Cnetplot для ora_results_2
+# Cnetplot for ora_results_2
 ora_cnetplot_2 <- cnetplot(ora_results_2, showCategory = 3)
 
-# Cnetplot для ora_results_3
+# Cnetplot for ora_results_3
 #ora_cnetplot_3 <- cnetplot(ora_results_3, showCategory = 3)
 
-# Cnetplot для ora_results_4
+# Cnetplot for ora_results_4
 ora_cnetplot_4 <- cnetplot(ora_results_4, showCategory = 3)
 
-# Cnetplot для ora_results_5
+# Cnetplot for ora_results_5
 ora_cnetplot_5 <- cnetplot(ora_results_5, showCategory = 3)
 
-# Сохранение cnetplot_1 - cnetplot_5 в JPG
+# Saving cnetplot_1 - cnetplot_5 in JPG
 ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_cnetplot_1.jpg", plot = ora_cnetplot_1, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_cnetplot_2.jpg", plot = ora_cnetplot_2, width = 16, height = 10, dpi = 300)
 #ggsave(filename = "ora_cnetplot_3.jpg", plot = ora_cnetplot_3, width = 16, height = 10, dpi = 300)
@@ -1909,8 +1906,8 @@ ggsave(filename = "../../../images/CD/train/ORA/ORA_All_Results/ora_cnetplot_5.j
 
 ```
 
-## GSEA Болезнь Крона
-Ранжированные по -log10(P.Value) * sign(logFC) гены для CD групп:
+## GSEA CD
+Ranging by -log10(P.Value) * sign(logFC) genes for CD groups:
 ```{r}
 CD_gene_list_1 <- with(CD_DEG_results_1, -log10(P.Value) * sign(logFC))
 names(CD_gene_list_1) <- rownames(CD_DEG_results_1)
@@ -2000,7 +1997,7 @@ CD_gsea_results_5 <- gseGO(
   pvalueCutoff  = 0.05
 )
 ```
-### Визуализации:
+### Visualization:
 
 ```{r}
 # Dotplot для CD_gsea_results_1
@@ -2041,7 +2038,7 @@ CD_gsea_dotplot_5 <- dotplot(CD_gsea_results_5, showCategory = 5, split = ".sign
 ```{r}
 dir.create("../../../images/CD/train/GSEA/GSEA_CD_Results", recursive = TRUE, showWarnings = FALSE)
 
-# Сохранение dotplot_1 - dotplot_5 в формате PNG
+# Save dotplot_1 - dotplot_5 in PNG
 ggsave(filename = "../../../images/CD/train/GSEA/GSEA_CD_Results/CD_dotplot_1.png", plot = CD_gsea_dotplot_1, 
        width = 10, height = 8,  dpi = 600)
 
@@ -2061,23 +2058,23 @@ ggsave(filename = "../../../images/CD/train/GSEA/GSEA_CD_Results/CD_dotplot_5.pn
 
 
 ```{r}
-# Cnetplot для ora_results_1
+# Cnetplot for ora_results_1
 CD_gsea_cnetplot_1 <- cnetplot(CD_gsea_results_1, showCategory = 3)
 
-# Cnetplot для ora_results_2
+# Cnetplot for ora_results_2
 CD_gsea_cnetplot_2 <- cnetplot(CD_gsea_results_2, showCategory = 3)
 
-# Cnetplot для ora_results_3
+# Cnetplot for ora_results_3
 #ora_cnetplot_3 <- cnetplot(ora_results_3, showCategory = 3)
 
-# Cnetplot для ora_results_4
+# Cnetplot for ora_results_4
 CD_gsea_cnetplot_4 <- cnetplot(CD_gsea_results_4, showCategory = 3)
 
-# Cnetplot для ora_results_5
+# Cnetplot for ora_results_5
 CD_gsea_cnetplot_5 <- cnetplot(CD_gsea_results_5, showCategory = 3)
 
 
-# Сохранение cnetplot_1 - cnetplot_5 в JPG
+# Save cnetplot_1 - cnetplot_5 in JPG
 ggsave(filename = "../../../images/CD/train/GSEA/GSEA_CD_Results/CD_gsea_cnetplot_1.jpg", plot = CD_gsea_cnetplot_1, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/GSEA/GSEA_CD_Results/CD_gsea_cnetplot_2.jpg", plot = CD_gsea_cnetplot_2, width = 16, height = 10, dpi = 300)
 #ggsave(filename = "ora_cnetplot_3.jpg", plot = ora_cnetplot_3, width = 16, height = 10, dpi = 300)
@@ -2087,7 +2084,7 @@ ggsave(filename = "../../../images/CD/train/GSEA/GSEA_CD_Results/CD_gsea_cnetplo
 
 
 
-## ORA Болезнь Крона:
+## ORA CD:
 ```{r}
 CD_deg_list_1 <- rownames(CD_DEG_results_1[CD_DEG_results_1$adj.P.Val < 0.05 & abs(CD_DEG_results_1$logFC) > 1, ])
 CD_deg_list_2 <- rownames(CD_DEG_results_2[CD_DEG_results_2$adj.P.Val < 0.05 & abs(CD_DEG_results_2$logFC) > 1, ])
@@ -2098,7 +2095,7 @@ CD_deg_list_5 <- rownames(CD_DEG_results_5[CD_DEG_results_5$adj.P.Val < 0.05 & a
 ```
 
 ```{r}
-# Определяем фоновый список universe (все измеренные гены)
+# Define the background list universe (all changed genes)
 CD_universe <- unique(c(rownames(CD_DEG_results_1), rownames(CD_DEG_results_2), 
                         rownames(CD_DEG_results_3), rownames(CD_DEG_results_4), 
                         rownames(CD_DEG_results_5)))
@@ -2158,48 +2155,48 @@ CD_ora_results_5 <- enrichGO(
 
 ```
 
-### Визуализации:
+### Visualization:
 ```{r}
-# Dotplot для CD_ora_results_1
+# Dotplot for CD_ora_results_1
 CD_ora_dotplot_1 <- dotplot(CD_ora_results_1, showCategory=10)
 
-# Dotplot для CD_ora_results_2
+# Dotplot for CD_ora_results_2
 CD_ora_dotplot_2 <- dotplot(CD_ora_results_2, showCategory=10)
 
-# Dotplot для CD_ora_results_3
+# Dotplot for CD_ora_results_3
 #CD_ora_dotplot_3 <- dotplot(CD_ora_results_3, showCategory=10)
 
-# Dotplot для CD_ora_results_4
+# Dotplot for CD_ora_results_4
 CD_ora_dotplot_4 <- dotplot(CD_ora_results_4, showCategory=10)
 
-# Dotplot для CD_ora_results_5
+# Dotplot for CD_ora_results_5
 CD_ora_dotplot_5 <- dotplot(CD_ora_results_5, showCategory=10)
 
 
 dir.create("../../../images/CD/train/ORA/ORA_CD_Results", recursive = TRUE, showWarnings = FALSE)
-# Сохранение dotplot_1 - dotplot_5 в PNG
+# Saving dotplot_1 - dotplot_5 in PNG
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_1.png", plot = CD_ora_dotplot_1, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_2.png", plot = CD_ora_dotplot_2, width = 16, height = 10, dpi = 300)
 #ggsave(filename = "CD_ora_dotplot_3.png", plot = CD_ora_dotplot_3, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_4.png", plot = CD_ora_dotplot_4, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_dotplot_5.png", plot = CD_ora_dotplot_5, width = 16, height = 10, dpi = 300)
 
-# Cnetplot для CD_ora_results_1
+# Cnetplot for CD_ora_results_1
 CD_ora_cnetplot_1 <- cnetplot(CD_ora_results_1, showCategory = 3)
 
-# Cnetplot для CD_ora_results_2
+# Cnetplot for CD_ora_results_2
 CD_ora_cnetplot_2 <- cnetplot(CD_ora_results_2, showCategory = 3)
 
-# Cnetplot для CD_ora_results_3
+# Cnetplot for CD_ora_results_3
 #CD_ora_cnetplot_3 <- cnetplot(CD_ora_results_3, showCategory = 3)
 
-# Cnetplot для CD_ora_results_4
+# Cnetplot for CD_ora_results_4
 CD_ora_cnetplot_4 <- cnetplot(CD_ora_results_4, showCategory = 3)
 
 # Cnetplot для CD_ora_results_5
 CD_ora_cnetplot_5 <- cnetplot(CD_ora_results_5, showCategory = 3)
 
-# Сохранение cnetplot_1 - cnetplot_5 в JPG
+# Save cnetplot_1 - cnetplot_5 into JPG
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_cnetplot_1.jpg", plot = CD_ora_cnetplot_1, width = 16, height = 10, dpi = 300)
 ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_cnetplot_2.jpg", plot = CD_ora_cnetplot_2, width = 16, height = 10, dpi = 300)
 #ggsave(filename = "CD_ora_cnetplot_3.jpg", plot = CD_ora_cnetplot_3, width = 16, height = 10, dpi = 300)
@@ -2209,7 +2206,7 @@ ggsave(filename = "../../../images/CD/train/ORA/ORA_CD_Results/CD_ora_cnetplot_5
 ```
 
 
-Сохраним результаты:
+Save results:
 ```{r}
 dir.create("../../../tables/CD/train/GSEA_All_Results", recursive = TRUE, showWarnings = FALSE)
 write.table(gsea_results_1, "../../../tables/CD/train/GSEA_All_Results/gsea_results_1.txt", sep = "\t", quote = FALSE, row.names = FALSE)
@@ -2230,22 +2227,22 @@ write.table(CD_gsea_results_5, "../../../tables/CD/train/GSEA_CD_Results/CD_gsea
 # WGCNA
 
 
-## Топ 7500 генов WGCNA
-Возьмем 7500 вариабельных генов, чтобы шум от других генов потенциально не влиял на результат.
+## Top 7500 genes WGCNA
+Take 7500 variable gees, to avoid noise effects.
 
-В mean_norm.expr_CD хранится информация об экспрессии всех пациентов с Кроном. Перезапишем таблицу, чтобы не терять mean_norm.expr_CD
+mean_norm.expr_CD keep the data about CD patients. Rewrite it into table to not looose it mean_norm.expr_CD
 ```{r}
 CD_WGCNA_data <- mean_norm.expr_CD # данные об экспрессии
 CD_WGCNA_metadata <- metadata_CD # метаданные
 ```
 
-Транспонируем матрицу
+Transpose the matrix
 ```{r}
 input_mat <- t(CD_WGCNA_data)
 
 ```
 
-Выбираем топ 7500 генов
+Choose top 7500 genes
 ```{r}
 # colnames(input_mat) <- input_mat[1, ]
 # input_mat <- input_mat[-1, ]
@@ -2345,7 +2342,7 @@ plotDendroAndColors(
 ```
 
 ```{r}
-# В таблице содержится ген и соответствующий ему цвет модуля
+# The table contains the gene and the corresponding module color.
 module_df_7500 <- data.frame(
   gene_id = names(netwk_7500$colors),
   colors = labels2colors(netwk_7500$colors)
@@ -2363,7 +2360,7 @@ batch <- as.data.frame(batch)
 # One-Hot Encoding
 batch_numeric <- model.matrix(~ . - 1, data = batch)
 
-# Преобразуем в data.frame (иначе это матрица)
+# Convert into data.frame (or it will be a matrix)
 batch_numeric <- as.data.frame(batch_numeric)
 
 
@@ -2373,7 +2370,7 @@ module.trait.corr.pvals <- corPvalueStudent(module.trait.corr, nrow(input_mat))
 rownames(batch_numeric) <- m_CD_RNR_beforeT$Geo_accession
 
 ```
-### Визуализация
+### Visualize
 ```{r}
 heatmap.data <- merge(netwk_7500$MEs, batch_numeric, by = 'row.names')
 
@@ -2406,7 +2403,7 @@ dev.off()
 
 ```
 
-Выбираем для GO модули ME0, ME3 и ME8. 
+Choose modules ME0, ME3 и ME8 for GO
 
 
 ```{r}
@@ -2419,7 +2416,7 @@ print(module_to_MEs)
 
 ```
 
-### GO для модулей 
+### GO for modules
 ```{r}
 dir.create("../../../tables/CD/train/WGCNA_Modules_Genes", recursive = TRUE, showWarnings = FALSE)
 # ME0
@@ -2486,13 +2483,13 @@ write_delim(ora_ME13_df[, c("ID", "Description")], "../../../tables/CD/train/WGC
 ```
 
 
-Данные для диаграммы Венна
+Data for Venn diagram
 ```{r}
 downr_CD_4 <- rownames(data_plot_CD_DEG_results_4)[data_plot_CD_DEG_results_4$diffexpressed == "Downregulated"]
 upr_CD_4 <- rownames(data_plot_CD_DEG_results_4)[data_plot_CD_DEG_results_4$diffexpressed == "Upregulated"]
 ```
 
-#### Диаграмма Венна
+#### Venn diagram
 ```{r}
 gene_lists <- list(
   DEGs = rownames(CD_deg_sign_4_pval),
@@ -2501,7 +2498,7 @@ gene_lists <- list(
   ME13_genes = ME13_genes
 )
 
-# Строим диаграмму Венна
+# Build Venn diagram
 venn.plot <- venn.diagram(
   x = gene_lists,
   filename = NULL, 
@@ -2521,7 +2518,8 @@ grid.draw(venn.plot)
 dev.off()
 
 ```
-Сохраним гены общие для ДЭГов (padj  value < 0.05) и модулей. Больше всего генов пересекаются с модулем 13.
+
+Let's keep the genes common to tags (padj value < 0.05) and modules. Most of the genes overlap with module 13.
 ```{r}
 intersect_values_ME13 <- intersect(rownames(CD_deg_sign_4_pval), ME13_genes)
 intersect_values_ME2 <- intersect(rownames(CD_deg_sign_4_pval), ME2_genes)
@@ -2532,7 +2530,7 @@ intersect_values_ME2 <- intersect(rownames(CD_deg_sign_4_pval), ME2_genes)
 write.csv(intersect_values_ME13, file = "../../../tables/CD/train/intersect_genes_DEGs_and_ME13.csv", row.names = FALSE)
 
 ```
-Затем эти гены были проанализированы при помощи STRING и CytoHubba для поиска hub-genes и дальнейшей валидации этих генов на валидаационной когорте.
+These genes were then analyzed using STRING and CytoHubba to search for hub-genes and further validate these genes in a validation cohort.
 
 
 

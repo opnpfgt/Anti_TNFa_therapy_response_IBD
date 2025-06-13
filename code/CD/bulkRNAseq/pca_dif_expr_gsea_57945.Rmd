@@ -175,7 +175,7 @@ files <- list.files("C:/Users/LEXUS/Documents/GSE57945_RAW", pattern = "*.gz", f
 lapply(files, gunzip)
 
 ```
-Посмотрим как выглядит дата
+Lets take a luuk at the data
 ```{r}
 sample_data <- read.table("C:/Users/LEXUS/Documents/GSE57945_RAW/GSM1598408_CCFA_Risk_001.txt", 
                           header = TRUE,
@@ -220,13 +220,13 @@ annotation_genes <- annotation %>% dplyr::select(GeneID, Symbol)
 ```{r}
 colnames(GSE57945_raw_counts)[1] <- "GeneID"  # Переименование, если нужно
 
-# Объединение по GeneID
+# Merge by GeneID
 counts_with_symbols1 <- merge(annotation_genes, GSE57945_raw_counts, by = "GeneID")
 
-# Удаление столбца GeneID (оставляем только GeneSymbol)
+# Delete column GeneID (leave only GeneSymbol)
 counts_with_symbols <- counts_with_symbols1[, -1]
 
-# Установка GeneSymbol как rownames
+# Put GeneSymbol as rownames
 #rownames(counts_with_symbols) <- counts_with_symbols$Symbol
 #counts_with_symbols <- counts_with_symbols[, -1]
 ```

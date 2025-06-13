@@ -39,14 +39,14 @@ setwd(main_dir)
 
 Patients with moderate-to-severe, active UC were treated with infliximab or placebo at weeks 0, 2, 6 and every 8 weeks thereafter. Biopsy samples (n=113) were collected from 48 patients at baseline, weeks 8 and 30 for RNA extraction and microarray analysis.
 
-## Загрузка метаданных для датасета
+## Load the metadata for dataset
 
 ```{r message=FALSE, warning=FALSE}
 gse97 <- getGEO(GEO = 'GSE23597', GSEMatrix = TRUE)
 metadata97 <- pData(phenoData(gse97[[1]]))
 ```
 
-### Отбор полезных колонок
+### Choose useful columns
 
 ```{r}
 # colnames(metadata97)
@@ -70,55 +70,54 @@ metadata_edited <- metadata97 %>%
 
 
 
-### Определение выборок -- групп для сравнения
+### Defining samples -- groups for comparison
 
-В эксперименте участвовали пациенты, получавшие плацебо вместо инфликсимаба. Отбираем только тех пациентов, которые получали инфликсимаб.
+The experiment involved patients who received placebo instead of infliximab. We select only those patients who received infliximab.
 
 ```{r}
 
-# 1. ВСЕ до лечения (Нулевая неделя)
+# 1. EVERYTHING before treatment (Week zero)
 all_beforeT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W0")
 
-# 2. ВСЕ после 8 недель лечения
+# 2. EVERYTHING after 8 weeks of treatment
 all_after_8W <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W8")
   
-# 3. ВСЕ после 30 недель лечения
+# 3. EVERYTHING after 30 weeks of treatment
 all_after_30W <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W30")
 
-# 4. Респондеры после 8 недели до лечения
+# 4. Responders after 8 weeks before treatment
 all_R8_beforeT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W0" & response_wk8 == "Yes")
   
-# 5. Респондеры после 30 недели до лечения
+# 5. Responders after 30 weeks before treatment
 all_R30_beforeT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W0" & response_wk30 == "Yes")
 
-# 6. Респондеры после 8 недели после лечения
+# 6. Responders after 8 weeks after treatment
 all_R8_afterT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W8" & response_wk8 == "Yes")
   
-# 7. Респондеры после 30 недели после лечения
+# 7. Responders after 30 weeks after treatment
 all_R30_afterT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W30" & response_wk30 == "Yes")
   
-# 8. Все респондеры вообще
+# 8. All responders in general
 all_afterT <- metadata_edited %>%
   filter(dose != "placebo" & (time_point == "W8" | time_point == "W30") & (response_wk30 == "Yes" | response_wk30 == "Yes"))
 
-# 9. НЕреспондеры ДО лечения
+# 9. NONRESPONDERS BEFORE treatment
 all_NR_beforeT <- metadata_edited %>%
   filter(dose != "placebo" & time_point == "W0" & response_wk30 == "No")
 
-# 10. НЕреспондеры ПОСЛЕ лечения
+# 10. NONRESPONDERS AFTER treatment
 all_NR_afterT <- metadata_edited %>%
   filter(dose != "placebo" & (time_point == "W8" | time_point == "W30") & response_wk30 == "No")
 ```
 
-## Загрузка сырых данных
-
+## Loading raw data
 ```{r message=FALSE, warning=FALSE, paged.print=FALSE}
 
 # get supplementary files
@@ -130,16 +129,16 @@ untar("../../../data/UC/validation/GSE23597/GSE23597_RAW.tar", exdir = '../../..
 raw.data <- ReadAffy(celfile.path = "../../../data/UC/validation/GSE23597/GSE23597_data")
 ```
 
-### RMA - Нормализация
+### RMA - Normalization
 
 ```{r message=FALSE, warning=FALSE}
 normalized.data <- rma(raw.data)
 normalized.expr <- as.data.frame(exprs(normalized.data))
 ```
 
-### Добавление колонки Gene.Symbol
+### Adding a Gene column.Symbol
 
-И удаление строк без аннотации
+And deleting lines without annotations
 
 ```{r message=FALSE, warning=FALSE}
 gse_gs <- getGEO("GSE23597", GSEMatrix = TRUE)
@@ -158,7 +157,7 @@ filtered_gene_normalized.expr <- gene_normalized.expr %>%
   filter(Gene.Symbol != "" & !is.na(Gene.Symbol))
 ```
 
-### Группировка по Gene.Symbol и подсчет среднего значения экспрессии
+### Grouping by Gene.Symbol and calculation of the average expression value
 
 ```{r message=FALSE, warning=FALSE}
 mean_norm.expr <- filtered_gene_normalized.expr %>%
@@ -167,7 +166,7 @@ mean_norm.expr <- filtered_gene_normalized.expr %>%
 ```
 
 ```{r}
-# отформатируем таблицу с экспрессией
+# format the expression table
 mean_norm.expr <- as.data.frame(mean_norm.expr)
 rownames(mean_norm.expr) <- mean_norm.expr$Gene.Symbol
 colnames(mean_norm.expr) <- gsub(".CEL.gz", "", colnames(mean_norm.expr))
@@ -176,7 +175,7 @@ mean_norm.expr <- subset(mean_norm.expr, select = -Gene.Symbol)
 ```
 
 ```{r}
-# сохраним пациентов до лечения 
+# let's save patients before treatment
 W0_ids <- all_beforeT$Geo_accession
 
 W0_ids <- W0_ids[W0_ids %in% colnames(mean_norm.expr)]
@@ -186,14 +185,14 @@ W0_expr_data <- mean_norm.expr[ , W0_ids]
 
 
 ```{r}
-# Убедимся, что порядок пациентов в экспрессии и метадате совпадает
+# Make sure that the order of the patients in the expression and metadata match
 W0_ids <- colnames(W0_expr_data)
 all_beforeT_matched <- all_beforeT[match(W0_ids, all_beforeT$Geo_accession), ]
 
-# Проверим соответствие:
+# Let's check the match:
 stopifnot(all(W0_ids == all_beforeT_matched$Geo_accession))
 
-# Создаём вектор: 1 = респондер, 0 = нереспондер
+# Creating a vector: 1 = responder, 0 = non-responder
 response_vector <- ifelse(all_beforeT_matched$response_wk8 == "Yes", 1, 0)
 
 ```
