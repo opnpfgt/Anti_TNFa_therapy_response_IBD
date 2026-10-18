@@ -206,4 +206,4 @@ aal1999arth@gmail.com
 #### Scientific advisor:
 * Mariia Saliutina,     
 *Bioinformatics Institute, St. Petersburg, Russia*  
-mariia.saliutina@charite.de
+m.salyutina@gmail.com
